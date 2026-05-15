@@ -1,0 +1,1 @@
+export const serviceSearchableFields = ["service_name"];
