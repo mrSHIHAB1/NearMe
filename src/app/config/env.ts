@@ -49,6 +49,8 @@ interface EnvConfig {
     };
     REDIS_HOST: string;
     REDIS_PORT: string;
+    REDIS_USERNAME: string;
+    REDIS_PASSWORD: string;
 
     TYPE: string;
     PROJECT_ID: string;
@@ -116,6 +118,8 @@ const loadEnvVariables = (): EnvConfig => {
 
         "REDIS_HOST",
         "REDIS_PORT",
+        "REDIS_USERNAME",
+        "REDIS_PASSWORD",
 
         'TYPE',
         'PROJECT_ID',
@@ -193,7 +197,8 @@ const loadEnvVariables = (): EnvConfig => {
 
         REDIS_HOST: process.env.REDIS_HOST as string,
         REDIS_PORT: process.env.REDIS_PORT as string,
- 
+        REDIS_USERNAME: process.env.REDIS_USERNAME as string,
+        REDIS_PASSWORD: process.env.REDIS_PASSWORD as string,
         TYPE: process.env.TYPE as string,
         PROJECT_ID: process.env.PROJECT_ID as string,
         PRIVATE_KEY_ID: process.env.PRIVATE_KEY_ID as string,

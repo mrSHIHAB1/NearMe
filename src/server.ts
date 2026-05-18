@@ -23,10 +23,19 @@ const startServer = async () => {
 }
 
 (async () => {
-    await connectRedis();
-    await startServer();
-    await seedSuperAdmin();
-    await seedPlans();
+    try {
+        await connectRedis();
+        await startServer();
+        await seedSuperAdmin();
+        await seedPlans();
+    } catch (error) {
+        console.log("Startup error", error);
+
+        // Fail fast in production, but keep dev server running.
+        if (envVars.NODE_ENV === "production") {
+            process.exit(1);
+        }
+    }
 })()
 
 process.on("unhandledRejection", (err) => {

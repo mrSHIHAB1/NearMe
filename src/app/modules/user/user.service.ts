@@ -45,7 +45,7 @@ const createUser = async (payload: Partial<IUser>) => {
     const user = await User.create(userPayload as IUser);
 
     // Send OTP to verify
-    sendEmail({
+    await sendEmail({
         to: user.email,
         subject: 'User verify OTP',
         templateName: 'otp',
@@ -167,7 +167,7 @@ const resendOTPService = async (email: string) => {
     );
 
     // Send OTP to verify
-    sendEmail({
+    await sendEmail({
         to: isUser.email,
         subject: 'User verify OTP',
         templateName: 'otp',
