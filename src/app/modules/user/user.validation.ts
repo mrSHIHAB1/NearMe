@@ -19,12 +19,7 @@ export const createUserZodSchema = z.object({
         .email({ message: "Invalid email address" })
         .min(5, { message: "Email must be at least 5 characters long" })
         .max(100, { message: "Email cannot exceed 100 characters" }),
-    phone: z.string()
-        .regex(/^(\+8801|01)[3-9]\d{8}$/, {
-            message:
-                "Phone number must be valid for Bangladesh. Format: +8801XXXXXXXXX or 01XXXXXXXXX",
-        })
-        .optional(),
+    phone: z.string().optional(),
     picture: z
         .string()
         .optional(),

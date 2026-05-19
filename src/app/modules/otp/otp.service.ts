@@ -3,7 +3,7 @@ import { redisClient } from "../../config/redis.config";
 import AppError from "../../errorHelpers/AppError";
 import { sendEmail } from "../../utils/sendEmail";
 import { User } from "../user/user.model";
-const OTP_EXPIRATION = 2 * 60 // 2minute
+const OTP_EXPIRATION = 5 * 60 // 2minute
 
 const generateOtp = (length = 6) => {
     //6 digit otp
@@ -29,12 +29,7 @@ const sendOTP = async (email: string, name: string) => {
 
     const redisKey = `otp:${email}`
 
-    await redisClient.set(redisKey, otp, {
-        expiration: {
-            type: "EX",
-            value: OTP_EXPIRATION
-        }
-    })
+    await redisClient.set(redisKey, otp, "EX", OTP_EXPIRATION)
 
     await sendEmail({
         to: email,

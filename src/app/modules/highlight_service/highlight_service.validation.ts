@@ -2,8 +2,7 @@ import z from "zod";
 
 export const createHighlightServiceZodSchema = z.object({
   service: z
-    .string()
-    .min(1, { message: "Service ID is required" }),
+    .string(),
 
   title: z
     .string()

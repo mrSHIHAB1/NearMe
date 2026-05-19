@@ -28,6 +28,13 @@ router.get(
   ServiceControllers.getAllServices
 );
 
+// Get provider's own service
+router.get(
+  "/my-service",
+  checkAuth(Role.PROVIDER),
+  ServiceControllers.getMyService
+);
+
 // Nearest services (geo-based)
 router.post("/nearest", ServiceControllers.getNearestServices);
 

@@ -95,6 +95,9 @@ export const createServiceZodSchema = z.object({
 
   allTimeAvailability: z.boolean(),
 
+  // ── Plan Selection (REQUIRED on create) ──
+  planId: z.string(),
+
   // ── Subscription fields (OPTIONAL on create) ──
   activePlan: objectIdSchema.optional(),
 

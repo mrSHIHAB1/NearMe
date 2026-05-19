@@ -44,7 +44,7 @@ const serviceSchema = new Schema<IService>(
         required: true,
       },
     ],
-    phone: { type: Number, required: true },
+    phone: { type: String, required: true },
     service_address: { type: String, required: true },
     about: { type: String, required: true },
     website_link: { type: String, required: true },

@@ -58,14 +58,22 @@ const createUser = async (payload: Partial<IUser>) => {
 
     // Reset user OTP after 2 min
     setTimeout(async () => {
-        user.otp = "0";
-        user.save();
+        try {
+            await User.findByIdAndUpdate(user._id, { otp: "0" }, { new: true });
+        } catch (error) {
+            // User may have been deleted, ignore error
+        }
     }, 1000 * 60 * 2);
 
     // Delete User if he is not verified within __ time
     setTimeout(async () => {
-        if (!user.isVerified) {
-            await User.findByIdAndDelete(user._id);
+        try {
+            const unverifiedUser = await User.findById(user._id);
+            if (unverifiedUser && !unverifiedUser.isVerified) {
+                await User.findByIdAndDelete(user._id);
+            }
+        } catch (error) {
+            // User already deleted, ignore error
         }
     }, 1000 * 60 * 60 * 24);
 
@@ -117,7 +125,7 @@ const verifyUserService = async (email: string, otp: string) => {
         { isVerified: true, otp: 0, $unset: { deleteAfter: '' } },
         {
             runValidators: true,
-            new: true,
+            returnDocument: 'after',
             projection: {
                 password: 0,
                 otp: 0,
@@ -154,7 +162,7 @@ const resendOTPService = async (email: string) => {
         { otp: generateOTP, otpExpireAt: otpExpiry },
         {
             runValidators: true,
-            new: true,
+            returnDocument: 'after',
             projection: {
                 password: 0,
                 otp: 0,

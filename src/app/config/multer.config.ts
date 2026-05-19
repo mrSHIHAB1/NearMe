@@ -68,6 +68,6 @@ const generateFileName = (file: Express.Multer.File) => {
 export const multerUpload = multer({
   storage,
   limits: {
-    fileSize: 100 * 1024 * 1024, // 10MB
+    fileSize: 100 * 1024 * 1024, // 100MB
   },
 });

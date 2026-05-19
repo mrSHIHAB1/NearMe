@@ -37,7 +37,7 @@ const createService = catchAsync(async (req: Request, res: Response) => {
     media: files?.media?.map((file) => file.path) || [],
     company_logo: files?.company_logo?.[0]?.path || "",
   };
- 
+ console.log("Received create service request with payload:", payload);
   const result = await ServiceServices.createService(payload, user.userId);
  
   if ("free" in result) {
@@ -245,6 +245,27 @@ const deleteService = catchAsync(
   }
 );
 
+/**
+ * GET /service/my-service
+ *
+ * Retrieves the authenticated provider's own service
+ * Requires: PROVIDER role
+ * Returns: Full service details with ratings and all relationships
+ */
+const getMyService = catchAsync(
+  async (req: Request, res: Response) => {
+    const user = req.user as JwtPayload;
+    const service = await ServiceServices.getMyService(user.userId);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Your service retrieved successfully",
+      data: service,
+    });
+  }
+);
+
 export const ServiceControllers = {
   createService,
   getAllServices,
@@ -254,4 +275,5 @@ export const ServiceControllers = {
   updateService,
   getSingleService,
   deleteService,
+  getMyService,
 };

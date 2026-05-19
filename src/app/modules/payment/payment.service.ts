@@ -60,6 +60,7 @@ const paymentSuccessHandler = async (
   });
 };
 
+
 /**
  * Called when Stripe reports a failed or expired checkout session.
  * Marks the payment as FAILED.
@@ -91,27 +92,18 @@ const handleFreePlan = async (
   planId: Types.ObjectId,
   planCurrency: string
 ): Promise<{ free: true }> => {
-  const session = await mongoose.startSession();
-
   try {
-    session.startTransaction();
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const payment = await PaymentModel.create(
-      [
-        {
-          user: userId,
-          service: serviceId,
-          plan: planId,
-          transaction_id: generateTransactionId(),
-          amount: 0,
-          currency: planCurrency.toUpperCase(),
-          provider: PaymentProvider.STRIPE, // provider field is still required; use STRIPE as default
-          payment_status: PaymentStatus.PAID,
-        },
-      ],
-      { session }
-    );
+    // Create payment record without session (no transaction needed for free plan)
+    await PaymentModel.create({
+      user: userId,
+      service: serviceId,
+      plan: planId,
+      transaction_id: generateTransactionId(),
+      amount: 0,
+      currency: planCurrency.toUpperCase(),
+      provider: PaymentProvider.STRIPE,
+      payment_status: PaymentStatus.PAID,
+    });
 
     // Activate the free plan — no expiry for free tier
     await Service.findByIdAndUpdate(
@@ -120,17 +112,12 @@ const handleFreePlan = async (
         activePlan: planId,
         subscriptionStatus: "active",
         subscriptionExpiresAt: null, // free plan never expires
-      },
-      { session }
+      }
     );
 
-    await session.commitTransaction();
     return { free: true };
   } catch (error) {
-    await session.abortTransaction();
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 

@@ -78,6 +78,7 @@ const createService = async (
   /* ── 2. Validate the chosen plan ── */
   const plan = await Plan.findById(payload.planId);
   if (!plan || !plan.isActive) {
+    console.log(`Plan validation failed for planId: `,plan);
     throw new AppError(httpStatus.BAD_REQUEST, "Invalid or inactive plan selected");
   }
  
@@ -438,6 +439,34 @@ const deleteService = async (id: string, user: any) => {
   }
 };
 
+// ─── Get My Service (Provider's own service) ────────────────────────────────
+const getMyService = async (userId: string) => {
+  const service = await Service.findOne({ provider: userId })
+    .populate("service_category")
+    .populate("offer_services")
+    .populate("provider", "name email subscriptionInfo")
+    .populate("highlight_services");
+
+  if (!service) {
+    throw new AppError(httpStatus.NOT_FOUND, "You don't have a service yet. Create one to get started.");
+  }
+
+  // Calculate and update average rating
+  const ratingMap = await aggregateRatings([service._id]);
+  const ratingData = ratingMap.get(service._id.toString());
+  
+  if (ratingData) {
+    service.averageRating = parseFloat(ratingData.averageRating.toFixed(1));
+    await Service.findByIdAndUpdate(
+      service._id,
+      { averageRating: service.averageRating },
+      { new: false }
+    );
+  }
+
+  return service;
+};
+
 export const ServiceServices = {
   createService,
   getSingleService,
@@ -447,4 +476,5 @@ export const ServiceServices = {
   getServicesByCategory,
   updateService,
   deleteService,
+  getMyService,
 };

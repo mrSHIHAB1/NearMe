@@ -26,7 +26,7 @@ export interface IService {
   service_category?: Types.ObjectId;
   highlight_services?: Types.ObjectId[];
   offer_services?: Types.ObjectId[];
-  phone?: number;
+  phone?: string;
   service_address?: string;
   about?: string;
   website_link?: string;
