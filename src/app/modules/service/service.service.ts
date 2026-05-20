@@ -43,7 +43,7 @@ const aggregateRatings = async (serviceIds: any[]) => {
 
 // ─── Shared: slim select + provider populate ──────────────────────────────────
 const SERVICE_SELECT =
-  "_id service_name company_logo location openingTime closingTime allTimeAvailability service_address";
+  "_id service_name company_logo location openingTime closingTime allTimeAvailability service_address averageRating service_subCategory service_childCategory";
 const PROVIDER_SELECT =
   "subscriptionInfo.planName subscriptionInfo.badgeType subscriptionInfo.priorityScore";
 
@@ -291,6 +291,8 @@ const getServicesByCategory = async ({
   minRating,
   radius,
   availability,
+  service_subCategory,
+  service_childCategory,
 }: GetServicesByCategoryParams) => {
   if (!lat || !lon) {
     throw new AppError(httpStatus.BAD_REQUEST, "Location not provided");
@@ -299,31 +301,69 @@ const getServicesByCategory = async ({
   const userLon = parseFloat(lon);
   const userLat = parseFloat(lat);
 
-  // ── Step 1: Resolve all category IDs in the tree ─────────────────────────
-  // e.g. clicking "Trades & Services" (level 0) resolves to its own ID +
-  // all sub-category IDs + all child-category IDs.
-  const allCategoryIds = await getAllDescendantCategoryIds(categoryId);
+  // ── Step 1: Determine the primary category to filter by ─────────────────────
+  // Priority: service_subCategory > categoryId
+  // If service_subCategory is provided, use it; otherwise use categoryId
+  const primaryCategoryId = service_subCategory || categoryId;
+  const allPrimaryCategoryIds = await getAllDescendantCategoryIds(primaryCategoryId);
+
+  // ── Step 1b: Resolve child-category IDs if provided ──────────────────────
+  let allChildCategoryIds: string[] = [];
+  if (service_childCategory) {
+    // Handle both string and array of strings
+    const childCategoryArray = Array.isArray(service_childCategory)
+      ? service_childCategory
+      : [service_childCategory];
+    
+    for (const childCatId of childCategoryArray) {
+      const descendants = await getAllDescendantCategoryIds(childCatId);
+      allChildCategoryIds = [...new Set([...allChildCategoryIds, ...descendants])];
+    }
+  }
 
   // ── Step 2: If specific checkboxes are ticked, narrow to those IDs ────────
   // offerServiceIds are the leaf-level IDs the user selected via checkbox.
-  // We only keep IDs that genuinely belong to this category's tree
+  // We only keep IDs that genuinely belong to the primary category's tree
   // (prevents tampering with unrelated category IDs).
   const targetIds =
     offerServiceIds && offerServiceIds.length > 0
-      ? offerServiceIds.filter((id) => allCategoryIds.includes(id))
-      : allCategoryIds;
+      ? offerServiceIds.filter((id) => allPrimaryCategoryIds.includes(id))
+      : allPrimaryCategoryIds;
 
-  if (targetIds.length === 0) {
+  if (targetIds.length === 0 && allChildCategoryIds.length === 0) {
     return { data: [], total: 0 };
   }
 
   // ── Step 3: Build the MongoDB filter ─────────────────────────────────────
-  const dbQuery: any = {
-    $or: [
+  // When service_subCategory is provided, filter ONLY by that field
+  // When service_subCategory is NOT provided, filter by service_category or offer_services
+  const orConditions: any[] = [];
+
+  if (service_subCategory) {
+    // Filter ONLY by service_subCategory when it's explicitly provided
+    orConditions.push({ service_subCategory: { $in: targetIds } });
+  } else {
+    // Use original category-based filtering when service_subCategory is not provided
+    orConditions.push(
       { service_category: { $in: targetIds } },
-      { offer_services: { $in: targetIds } },
-    ],
+      { offer_services: { $in: targetIds } }
+    );
+  }
+
+  // Build the main query with OR conditions
+  let dbQuery: any = {
+    $or: orConditions,
   };
+
+  // If child-category filter is provided, apply it with AND logic (narrows results)
+  if (allChildCategoryIds.length > 0) {
+    dbQuery = {
+      $and: [
+        { $or: orConditions },
+        { service_childCategory: { $in: allChildCategoryIds } }
+      ]
+    };
+  }
 
   // Optional: geo radius filter applied at DB level for performance
   if (radius) {

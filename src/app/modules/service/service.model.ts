@@ -31,6 +31,16 @@ const serviceSchema = new Schema<IService>(
       ref: "Category",
       required: true,
     },
+    service_subCategory: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      default: null,
+    },
+    service_childCategory: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      default: null,
+    },
     highlight_services: [
       {
         type: Schema.Types.ObjectId,

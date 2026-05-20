@@ -20,6 +20,8 @@ export const buildServiceMeta = (
     closingTime: service.closingTime,
     allTimeAvailability: service.allTimeAvailability,
     service_address: service.service_address,
+    service_subCategory: service.service_subCategory ?? null,
+    service_childCategory: service.service_childCategory ?? null,
     provider: {
       planName: service.provider?.subscriptionInfo?.planName ?? "free",
       badgeType: service.provider?.subscriptionInfo?.badgeType ?? "none",
@@ -27,7 +29,7 @@ export const buildServiceMeta = (
     },
     averageRating: ratingData
       ? parseFloat(ratingData.averageRating.toFixed(1))
-      : 0,
+      : (service.averageRating ?? 0),
     totalReviews: ratingData?.totalReviews ?? 0,
     distanceInMiles: calculateDistanceInMiles(
       userLon,

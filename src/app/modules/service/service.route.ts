@@ -24,7 +24,7 @@ router.post(
 
 router.get(
   "/all-services",
-  checkAuth(Role.SUPER_ADMIN),
+  checkAuth(Role.PROVIDER),
   ServiceControllers.getAllServices
 );
 
@@ -41,23 +41,7 @@ router.post("/nearest", ServiceControllers.getNearestServices);
 // Global search by service name
 router.get("/search", ServiceControllers.searchServices);
 
-/**
- * POST /services/by-category
- *
- * Powers page 2 right panel — returns services under a category tree.
- *
- * Body:
- * {
- *   categoryId:      string        ← required
- *   lon:             string        ← required
- *   lat:             string        ← required
- *   offerServiceIds: string[]      ← optional. Specific sub/child IDs from checkboxes.
- *   searchTerm:      string        ← optional. Filter by service name.
- *   minRating:       number        ← optional. e.g. 4.0
- *   radius:          number        ← optional. Miles. Default: no radius cap.
- *   availability:    boolean       ← optional. true = open now only.
- * }
- */
+
 router.post("/by-category", ServiceControllers.getServicesByCategory);
 
 router.get("/:id", ServiceControllers.getSingleService);

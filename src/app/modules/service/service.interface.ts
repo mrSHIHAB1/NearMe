@@ -15,6 +15,8 @@ export interface GetServicesByCategoryParams {
   minRating?: number;
   radius?: number;       // miles
   availability?: boolean; // true = open now only
+  service_subCategory?: string;  // optional sub-category ID
+  service_childCategory?: string | string[]; // optional child-category ID(s)
 }
 
 export type SubscriptionStatus = "active" | "inactive" | "expired";
@@ -24,6 +26,8 @@ export interface IService {
   provider?: Types.ObjectId;
   service_name?: string;
   service_category?: Types.ObjectId;
+  service_subCategory?: Types.ObjectId;
+  service_childCategory?: Types.ObjectId;
   highlight_services?: Types.ObjectId[];
   offer_services?: Types.ObjectId[];
   phone?: string;

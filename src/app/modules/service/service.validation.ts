@@ -59,6 +59,10 @@ export const createServiceZodSchema = z.object({
 
   service_category: objectIdSchema,
 
+  service_subCategory: objectIdSchema.optional(),
+
+  service_childCategory: objectIdSchema.optional(),
+
   offer_services: z
     .array(objectIdSchema)
     .min(1, { message: "At least one offered service is required" }),
@@ -116,6 +120,10 @@ export const updateServiceZodSchema = z.object({
   service_name: z.string().min(2).max(100).optional(),
 
   service_category: objectIdSchema.optional(),
+
+  service_subCategory: objectIdSchema.optional(),
+
+  service_childCategory: objectIdSchema.optional(),
 
   offer_services: z.array(objectIdSchema).optional(),
 

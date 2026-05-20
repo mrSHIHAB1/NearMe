@@ -140,17 +140,19 @@ const searchServices = catchAsync(async (req: Request, res: Response) => {
  *
  * Body:
  * {
- *   categoryId:      string         ← required. The root/sub/child category ID clicked.
- *   lon:             string         ← required. User longitude.
- *   lat:             string         ← required. User latitude.
+ *   categoryId:          string         ← required. The root/sub/child category ID clicked.
+ *   lon:                 string         ← required. User longitude.
+ *   lat:                 string         ← required. User latitude.
  *
  *   // ── optional filters ──────────────────────────────────────────────────
- *   offerServiceIds: string[]       ← specific sub/child category IDs selected via checkboxes.
- *                                     If omitted → all descendants are included.
- *   searchTerm:      string         ← free-text search on service_name.
- *   minRating:       number         ← e.g. 4.0
- *   radius:          number         ← in miles (default 10)
- *   availability:    boolean        ← true = show only currently open services
+ *   service_subCategory: string         ← optional. Filter by sub-category ID.
+ *   service_childCategory: string|string[] ← optional. Filter by child-category ID(s).
+ *   offerServiceIds:     string[]       ← specific sub/child category IDs selected via checkboxes.
+ *                                         If omitted → all descendants are included.
+ *   searchTerm:          string         ← free-text search on service_name.
+ *   minRating:           number         ← e.g. 4.0
+ *   radius:              number         ← in miles (default 10)
+ *   availability:        boolean        ← true = show only currently open services
  * }
  *
  * Response data shape (each item):
@@ -171,6 +173,8 @@ const getServicesByCategory = catchAsync(
       minRating,
       radius,
       availability,
+      service_subCategory,
+      service_childCategory,
     } = req.body;
 
     if (!categoryId) {
@@ -187,6 +191,8 @@ const getServicesByCategory = catchAsync(
       radius: radius ? parseFloat(radius) : undefined,
       availability:
         availability !== undefined ? availability === true || availability === "true" : undefined,
+      service_subCategory,
+      service_childCategory,
     });
 
     sendResponse(res, {
