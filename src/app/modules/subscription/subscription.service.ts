@@ -113,9 +113,83 @@ const cancelMySubscription = async (userId: string) => {
   return activeSubscription;
 };
 
+// Manual subscription creation by admin/superadmin
+const createManualSubscription = async (
+  userId: string,
+  planId: string,
+  subscriptionData?: {
+    startDate?: Date;
+    endDate?: Date;
+    amount?: number;
+    currency?: string;
+    autoRenew?: boolean;
+  }
+) => {
+  // Verify plan exists and is active
+  const plan: any = await Plan.findById(planId);
+
+  if (!plan || !plan.isActive) {
+    throw new AppError(httpStatus.NOT_FOUND, "Plan not found or is inactive");
+  }
+
+  // Handle free plan
+  if (plan.name === "free") {
+    await syncUserSubscriptionInfo(userId);
+    return {
+      message: "Free plan applied successfully",
+      plan,
+    };
+  }
+
+  // Mark previous subscription as cancelled if exists
+  const activeSubscription = await Subscription.findOne({
+    user: userId,
+    isCurrent: true,
+  });
+
+  if (activeSubscription) {
+    activeSubscription.isCurrent = false;
+
+    if (activeSubscription.status === "active") {
+      activeSubscription.status = "cancelled";
+    }
+
+    await activeSubscription.save();
+  }
+
+  // Set default dates
+  const startDate = subscriptionData?.startDate || new Date();
+  const endDate = subscriptionData?.endDate || new Date(startDate);
+  
+  if (!subscriptionData?.endDate) {
+    endDate.setMonth(endDate.getMonth() + 1);
+  }
+
+  // Create new subscription
+  const newSubscription = await Subscription.create({
+    user: userId,
+    plan: plan._id,
+    status: "active",
+    startDate,
+    endDate,
+    autoRenew: subscriptionData?.autoRenew || false,
+    amount: subscriptionData?.amount || plan.price,
+    currency: subscriptionData?.currency || plan.currency,
+    paymentMethod: "manual",
+    paymentGateway: "manual_admin",
+    transactionId: `manual_admin_${Date.now()}`,
+    isCurrent: true,
+  });
+
+  await syncUserSubscriptionInfo(userId);
+
+  return await Subscription.findById(newSubscription._id).populate("plan");
+};
+
 export const SubscriptionService = {
   getMyCurrentSubscription,
   getMySubscriptionHistory,
   subscribeToPlan,
   cancelMySubscription,
+  createManualSubscription,
 };

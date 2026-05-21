@@ -65,9 +65,35 @@ const cancelMySubscription = catchAsync(
   }
 );
 
+const createManualSubscription = catchAsync(
+  async (req: Request, res: Response) => {
+    const { userId, planId, startDate, endDate, amount, currency, autoRenew } = req.body;
+
+    const result = await SubscriptionService.createManualSubscription(
+      userId,
+      planId,
+      {
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        amount,
+        currency,
+        autoRenew,
+      }
+    );
+
+    sendResponse(res, {
+      statusCode: StatusCodes.CREATED,
+      success: true,
+      message: "Subscription created successfully",
+      data: result,
+    });
+  }
+);
+
 export const SubscriptionController = {
   getMyCurrentSubscription,
   getMySubscriptionHistory,
   subscribeToPlan,
   cancelMySubscription,
+  createManualSubscription,
 };
