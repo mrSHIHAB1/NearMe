@@ -24,5 +24,8 @@ export interface TSubscription {
   paymentMethod?: string;
   paymentGateway?: string;
   transactionId?: string;
+  originalTransactionId?: string;
+  productId?: string;
+  platform?: "APPLE_IAP" | "GOOGLE_PLAY";
   isCurrent: boolean;
 }

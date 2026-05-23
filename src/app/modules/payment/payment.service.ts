@@ -1,337 +1,679 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import mongoose, { Types } from "mongoose";
-import { Request } from "express";
-import Stripe from "stripe";
+
 import { StatusCodes } from "http-status-codes";
-
-
-import { envVars } from "../../config/env"; // adjust to your env config path
-import { Role } from "../user/user.interface";
-
-import { PaymentModel } from "./payment.model";
-import { PaymentProvider, PaymentStatus } from "./payment.interface";
-import { generateTransactionId } from "./payment.utils";
-import { Plan } from "../plan/plan.model";
-import { Service } from "../service/service.model";
-import { JwtPayload } from "jsonwebtoken";
+import {
+  decodeNotificationPayload,
+  decodeRenewalInfo,
+  decodeTransaction,
+} from "app-store-server-api";
+import { Request } from "express";
+import { google } from "googleapis";
 import AppError from "../../errorHelpers/AppError";
+import PaymentTransaction from "./payment.model";
+import {
+  PaymentPlatform,
+  PaymentTransactionStatus,
+  PaymentTransactionType,
+} from "./payment.interface";
+import { Subscription } from "../subscription/subscription.model";
+import { Plan } from "../plan/plan.model";
+import { TPlanName } from "../plan/plan.interface";
+import { syncUserSubscriptionInfo } from "../../utils/subscriptionHelper/syncUserSubscriptionInfo";
 
-/* ------------------------------------------------------------------ */
-/*  Stripe client                                                       */
-/* ------------------------------------------------------------------ */
-const stripe = new Stripe(envVars.STRIPE_SECRET_KEY as string);
+type PurchaseSource = "apple" | "google";
+type IapPlatform = "APPLE_IAP" | "GOOGLE_PLAY";
 
-/* ================================================================== */
-/*  WEBHOOK HELPERS                                                    */
-/* ================================================================== */
+const PRODUCT_PLAN_MAP: Record<string, string> = (() => {
+  const raw = process.env.IAP_PRODUCT_PLAN_MAP;
+  if (!raw) {
+    return {};
+  }
 
-/**
- * Called when Stripe confirms a successful payment.
- * Marks the payment as PAID and activates the plan on the service.
- */
-const paymentSuccessHandler = async (
-  session: any
-): Promise<void> => {
-  const { payment: paymentId, service: serviceId, plan: planId } =
-    session.metadata as {
-      payment: string;
-      service: string;
-      plan: string;
-    };
-
-  // Update payment status to PAID
-  await PaymentModel.updateOne(
-    { _id: new Types.ObjectId(paymentId) },
-    {
-      payment_status: PaymentStatus.PAID,
-      payment_intent_id: session.payment_intent as string,
-    }
-  );
-
-  // Activate the plan on the service:
-  // Store the active plan and set a subscription expiry 30 days from now
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30);
-
-  await Service.findByIdAndUpdate(new Types.ObjectId(serviceId), {
-    activePlan: new Types.ObjectId(planId),
-    subscriptionExpiresAt: expiresAt,
-    subscriptionStatus: "active",
-  });
-};
-
-
-/**
- * Called when Stripe reports a failed or expired checkout session.
- * Marks the payment as FAILED.
- */
-const paymentFailedHandler = async (
-  session: any
-): Promise<void> => {
-  const { payment: paymentId } = session.metadata as { payment: string };
-
-  await PaymentModel.updateOne(
-    { _id: new Types.ObjectId(paymentId) },
-    { payment_status: PaymentStatus.FAILED }
-  );
-};
-
-/* ================================================================== */
-/*  FREE PLAN — no Stripe needed                                       */
-/* ================================================================== */
-
-/**
- * When a provider picks the FREE plan we:
- *  1. Record a PAID payment (amount = 0) straight away.
- *  2. Activate the plan on the service.
- *  3. Return a success flag so the controller can redirect the user.
- */
-const handleFreePlan = async (
-  userId: Types.ObjectId,
-  serviceId: Types.ObjectId,
-  planId: Types.ObjectId,
-  planCurrency: string
-): Promise<{ free: true }> => {
   try {
-    // Create payment record without session (no transaction needed for free plan)
-    await PaymentModel.create({
-      user: userId,
-      service: serviceId,
-      plan: planId,
-      transaction_id: generateTransactionId(),
-      amount: 0,
-      currency: planCurrency.toUpperCase(),
-      provider: PaymentProvider.STRIPE,
-      payment_status: PaymentStatus.PAID,
-    });
-
-    // Activate the free plan — no expiry for free tier
-    await Service.findByIdAndUpdate(
-      serviceId,
-      {
-        activePlan: planId,
-        subscriptionStatus: "active",
-        subscriptionExpiresAt: null, // free plan never expires
-      }
-    );
-
-    return { free: true };
+    return JSON.parse(raw) as Record<string, string>;
   } catch (error) {
-    throw error;
+    console.error("Invalid IAP_PRODUCT_PLAN_MAP JSON", error);
+    return {};
   }
+})();
+
+const VALID_PLAN_NAMES: ReadonlySet<TPlanName> = new Set([
+  "free",
+  "basic",
+  "pro",
+  "elite",
+]);
+
+const getPlanNameForProduct = (productId: string): TPlanName => {
+  const planName = PRODUCT_PLAN_MAP[productId] as TPlanName | undefined;
+  if (!planName) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      `No plan mapping for productId: ${productId}`
+    );
+  }
+
+  if (!VALID_PLAN_NAMES.has(planName)) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      `Invalid plan name mapping for productId: ${productId}`
+    );
+  }
+
+  return planName;
 };
 
-/* ================================================================== */
-/*  STRIPE PAYMENT — paid plans                                        */
-/* ================================================================== */
-
-/**
- * Initiates a Stripe Checkout session for a paid plan.
- *
- * Flow:
- *  1. Validate that the caller is a PROVIDER who owns a service.
- *  2. Ensure the chosen plan exists and is not already active.
- *  3. Persist a PENDING payment record inside a transaction.
- *  4. Create a Stripe Checkout session and return its URL.
- */
-const stripePay = async (
-  user: JwtPayload,
-  _serviceId: string,
-  _planId: string
-): Promise<{ checkout_url: string | null } | { free: true }> => {
-  /* ---------- ROLE GUARD ---------- */
-  if (user.role !== Role.PROVIDER) {
-    throw new AppError(
-      StatusCodes.UNAUTHORIZED,
-      "Only service providers can subscribe to a plan"
-    );
-  }
-
-  const userId = new Types.ObjectId(user.userId);
-  const serviceId = new Types.ObjectId(_serviceId);
-  const planId = new Types.ObjectId(_planId);
-
-  /* ---------- VALIDATION ---------- */
-  const [service, plan] = await Promise.all([
-    Service.findOne({ _id: serviceId, provider: user.userId }),
-    Plan.findById(planId),
-  ]);
-
-  if (!service) {
-    throw new AppError(StatusCodes.NOT_FOUND, "Service not found");
-  }
+const getPlanByName = async (planName: TPlanName) => {
+  const plan = await Plan.findOne({ name: planName, isActive: true });
   if (!plan) {
     throw new AppError(StatusCodes.NOT_FOUND, "Plan not found");
   }
-  if (!plan.isActive) {
-    throw new AppError(StatusCodes.BAD_REQUEST, "This plan is no longer available");
-  }
 
-  // Check if this service already has this plan active
-  if (
-    service.activePlan &&
-    service.activePlan.equals(planId) &&
-    service.subscriptionStatus === "active"
-  ) {
-    throw new AppError(
-      StatusCodes.BAD_REQUEST,
-      "This plan is already active for your service"
-    );
-  }
-
-  /* ---------- FREE PLAN SHORTCUT ---------- */
-  if (plan.price === 0) {
-    return handleFreePlan(userId, serviceId, planId, plan.currency);
-  }
-
-  /* ---------- TRANSACTION: persist pending payment ---------- */
-  const session = await mongoose.startSession();
-  let payment: any;
-
-  try {
-    session.startTransaction();
-
-    payment = await PaymentModel.create(
-      [
-        {
-          user: userId,
-          service: serviceId,
-          plan: planId,
-          transaction_id: generateTransactionId(),
-          amount: plan.price,
-          currency: plan.currency.toUpperCase(),
-          provider: PaymentProvider.STRIPE,
-          payment_status: PaymentStatus.PENDING,
-        },
-      ],
-      { session }
-    );
-
-    await session.commitTransaction();
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-
-  /* ---------- STRIPE CHECKOUT SESSION ---------- */
-  const amountInCents = Math.round(plan.price * 100);
-
-  const stripePayload = {
-    payment_method_types: ["card"] as any,
-    line_items: [
-      {
-        price_data: {
-          currency: plan.currency.toLowerCase(),
-          product_data: {
-            name: `${plan.title} — ${service.service_name}`,
-          },
-          unit_amount: amountInCents,
-        },
-        quantity: 1,
-      },
-    ],
-    mode: "payment"  as const,
-    // Session expires in 30 minutes
-    expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-    metadata: {
-      payment: payment[0]._id.toString(),
-      service: serviceId.toString(),
-      plan: planId.toString(),
-    },
-    success_url: `${envVars.FRONTEND_URL}/payment_success?tr_id=${payment[0].transaction_id}&service_id=${serviceId.toString()}`,
-    cancel_url: `${envVars.FRONTEND_URL}/payment_cancel?tr_id=${payment[0].transaction_id}&service_id=${serviceId.toString()}`,
-  };
-
-  // Use payment._id as idempotency key so retries don't double-charge
-  const idempotencyKey = { idempotencyKey: payment[0]._id.toString() };
-
-  try {
-    const stripeSession = await stripe.checkout.sessions.create(
-      stripePayload,
-      idempotencyKey
-    );
-
-    // Persist the stripe session ID so the webhook can look it up
-    await PaymentModel.updateOne(
-      { _id: payment[0]._id },
-      { stripe_session_id: stripeSession.id }
-    );
-
-    return { checkout_url: stripeSession.url };
-  } catch (error: any) {
-    // If Stripe call fails, mark the pending payment as FAILED
-    await PaymentModel.updateOne(
-      { _id: payment[0]._id },
-      { payment_status: PaymentStatus.FAILED }
-    );
-
-    throw new AppError(StatusCodes.BAD_GATEWAY, error.message);
-  }
+  return plan;
 };
 
-/* ================================================================== */
-/*  STRIPE WEBHOOK HANDLER                                             */
-/* ================================================================== */
+const markOtherSubscriptionsNotCurrent = async (userId: string, keepId?: string) => {
+  const filter: Record<string, any> = { user: userId, isCurrent: true };
+  if (keepId) {
+    filter._id = { $ne: keepId };
+  }
 
-/**
- * Validates the Stripe webhook signature and routes the event to the
- * correct handler.
- *
- * IMPORTANT: The route for this endpoint must use express.raw() (not
- * express.json()) so that the raw request body is available for
- * signature verification. See payment.route.ts.
- */
-const stripeWebhookHandling = async (req: Request): Promise<{ received: true }> => {
-  const signature = req.headers["stripe-signature"] as string;
+  await Subscription.updateMany(filter, {
+    $set: { isCurrent: false, status: "cancelled" },
+  });
+};
 
-  let event: any;
+const upsertSubscription = async (params: {
+  userId: string;
+  planId: string;
+  productId: string;
+  platform: IapPlatform;
+  transactionId: string;
+  originalTransactionId?: string;
+  startDate: Date;
+  endDate: Date;
+  autoRenew: boolean;
+  amount: number;
+  currency: string;
+}) => {
+  const {
+    userId,
+    planId,
+    productId,
+    platform,
+    transactionId,
+    originalTransactionId,
+    startDate,
+    endDate,
+    autoRenew,
+    amount,
+    currency,
+  } = params;
 
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body, // must be raw Buffer — see route setup
-      signature,
-      envVars.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err: any) {
+  const lookup: Record<string, any> = { user: userId };
+  if (originalTransactionId) {
+    lookup.originalTransactionId = originalTransactionId;
+  } else {
+    lookup.transactionId = transactionId;
+  }
+
+  let subscription = await Subscription.findOne(lookup);
+
+  if (subscription) {
+    subscription.plan = planId as any;
+    subscription.productId = productId;
+    subscription.platform = platform;
+    subscription.transactionId = transactionId;
+    subscription.originalTransactionId = originalTransactionId;
+    subscription.startDate = startDate;
+    subscription.endDate = endDate;
+    subscription.autoRenew = autoRenew;
+    subscription.amount = amount;
+    subscription.currency = currency;
+    subscription.status = endDate > new Date() ? "active" : "expired";
+    subscription.isCurrent = true;
+    subscription.paymentMethod = "iap";
+    subscription.paymentGateway = platform;
+    await subscription.save();
+
+    await markOtherSubscriptionsNotCurrent(userId, subscription._id.toString());
+    return subscription;
+  }
+
+  subscription = await Subscription.create({
+    user: userId,
+    plan: planId,
+    status: endDate > new Date() ? "active" : "expired",
+    startDate,
+    endDate,
+    autoRenew,
+    amount,
+    currency,
+    paymentMethod: "iap",
+    paymentGateway: platform,
+    transactionId,
+    originalTransactionId,
+    productId,
+    platform,
+    isCurrent: true,
+  });
+
+  await markOtherSubscriptionsNotCurrent(userId, subscription._id.toString());
+
+  return subscription;
+};
+
+const logPaymentTransaction = async (params: {
+  userId: string;
+  subscriptionId: string;
+  transactionId: string;
+  originalTransactionId?: string;
+  transactionType: PaymentTransactionType;
+  status: PaymentTransactionStatus;
+  platform: PaymentPlatform;
+  productId: string;
+  amount: number;
+  currency: string;
+  planType?: string;
+  billingCycle?: "1m" | "3m" | "1y";
+  purchaseDate: Date;
+  expiryDate?: Date;
+  orderRef?: string;
+  webhookEventType?: string;
+  webhookPayload?: Record<string, any>;
+  metadata?: Record<string, any>;
+}) => {
+  const { transactionId } = params;
+  await PaymentTransaction.findOneAndUpdate(
+    { transactionId },
+    { $set: params },
+    { upsert: true, new: true }
+  );
+};
+
+const buildGoogleAuth = () => {
+  const rawJson = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON;
+  if (rawJson) {
+    const credentials = JSON.parse(rawJson);
+    return new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/androidpublisher"],
+    });
+  }
+
+  const clientEmail = process.env.CLIENT_EMAIL;
+  const privateKey = process.env.PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const projectId = process.env.PROJECT_ID;
+
+  if (!clientEmail || !privateKey || !projectId) {
     throw new AppError(
-      StatusCodes.BAD_REQUEST,
-      `Webhook signature verification failed: ${err.message}`
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      "Missing Google Play service account credentials"
     );
   }
 
-  /* ---------- EVENT ROUTING ---------- */
-  switch (event.type) {
-    // Payment completed successfully
-    case "checkout.session.completed": {
-      const session = event.data.object as any;
-      await paymentSuccessHandler(session);
-      break;
+  return new google.auth.GoogleAuth({
+    credentials: {
+      client_email: clientEmail,
+      private_key: privateKey,
+      project_id: projectId,
+      type: process.env.TYPE || "service_account",
+    },
+    scopes: ["https://www.googleapis.com/auth/androidpublisher"],
+  });
+};
+
+const getGooglePlayClient = () => {
+  const auth = buildGoogleAuth();
+  return google.androidpublisher({ version: "v3", auth });
+};
+
+const getGoogleSubscription = async (params: {
+  packageName: string;
+  subscriptionId: string;
+  purchaseToken: string;
+}) => {
+  const client = getGooglePlayClient();
+
+  const response = await client.purchases.subscriptions.get({
+    packageName: params.packageName,
+    subscriptionId: params.subscriptionId,
+    token: params.purchaseToken,
+  });
+
+  return response.data;
+};
+
+const verifyApplePurchase = async (payload: {
+  userId: string;
+  receiptData: string;
+  productId: string;
+}) => {
+  const { userId, receiptData, productId } = payload;
+
+  const planName = getPlanNameForProduct(productId);
+  const plan = await getPlanByName(planName);
+
+  let transaction;
+  try {
+    transaction = await decodeTransaction(receiptData);
+  } catch (error: any) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      `Failed to decode Apple transaction: ${error.message}`
+    );
+  }
+
+  if (transaction.productId !== productId) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      `Product mismatch: expected ${productId}, got ${transaction.productId}`
+    );
+  }
+
+  const transactionId = transaction.transactionId;
+  const originalTransactionId =
+    transaction.originalTransactionId || transactionId;
+  const purchaseDate = transaction.purchaseDate
+    ? new Date(transaction.purchaseDate)
+    : new Date();
+  const expiryDate = transaction.expiresDate
+    ? new Date(transaction.expiresDate)
+    : null;
+
+  if (!expiryDate) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      "Apple transaction missing expiry date"
+    );
+  }
+
+  const subscription = await upsertSubscription({
+    userId,
+    planId: plan._id.toString(),
+    productId: transaction.productId,
+    platform: "APPLE_IAP",
+    transactionId,
+    originalTransactionId,
+    startDate: purchaseDate,
+    endDate: expiryDate,
+    autoRenew: transaction.type === "Auto-Renewable Subscription",
+    amount: plan.price,
+    currency: plan.currency,
+  });
+
+  await logPaymentTransaction({
+    userId,
+    subscriptionId: subscription._id.toString(),
+    transactionId,
+    originalTransactionId,
+    transactionType: PaymentTransactionType.PURCHASE,
+    status: PaymentTransactionStatus.COMPLETED,
+    platform: PaymentPlatform.APPLE_IAP,
+    productId: transaction.productId,
+    amount: plan.price,
+    currency: plan.currency,
+    planType: plan.name,
+    billingCycle: "1m",
+    purchaseDate,
+    expiryDate,
+    metadata: { rawTransaction: transaction },
+  });
+
+  await syncUserSubscriptionInfo(userId);
+
+  return subscription;
+};
+
+const verifyGooglePurchase = async (payload: {
+  userId: string;
+  productId: string;
+  purchaseToken: string;
+  packageName: string;
+  subscriptionId: string;
+}) => {
+  const { userId, productId, purchaseToken, packageName, subscriptionId } =
+    payload;
+
+  if (productId !== subscriptionId) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      "productId must match subscriptionId for Google Play"
+    );
+  }
+
+  const planName = getPlanNameForProduct(productId);
+  const plan = await getPlanByName(planName);
+
+  const purchase = await getGoogleSubscription({
+    packageName,
+    subscriptionId,
+    purchaseToken,
+  });
+
+  const expiryDate = purchase.expiryTimeMillis
+    ? new Date(Number(purchase.expiryTimeMillis))
+    : null;
+  const startDate = purchase.startTimeMillis
+    ? new Date(Number(purchase.startTimeMillis))
+    : new Date();
+
+  if (!expiryDate) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      "Google Play subscription missing expiryTimeMillis"
+    );
+  }
+
+  const subscription = await upsertSubscription({
+    userId,
+    planId: plan._id.toString(),
+    productId,
+    platform: "GOOGLE_PLAY",
+    transactionId: purchaseToken,
+    originalTransactionId: purchase.linkedPurchaseToken || undefined,
+    startDate,
+    endDate: expiryDate,
+    autoRenew: Boolean(purchase.autoRenewing),
+    amount: plan.price,
+    currency: plan.currency,
+  });
+
+  await logPaymentTransaction({
+    userId,
+    subscriptionId: subscription._id.toString(),
+    transactionId: purchaseToken,
+    originalTransactionId: purchase.linkedPurchaseToken || undefined,
+    transactionType: PaymentTransactionType.PURCHASE,
+    status: PaymentTransactionStatus.COMPLETED,
+    platform: PaymentPlatform.GOOGLE_PLAY,
+    productId,
+    amount: plan.price,
+    currency: plan.currency,
+    planType: plan.name,
+    billingCycle: "1m",
+    purchaseDate: startDate,
+    expiryDate,
+    orderRef: purchase.orderId || undefined,
+    metadata: { rawPurchase: purchase },
+  });
+
+  await syncUserSubscriptionInfo(userId);
+
+  return subscription;
+};
+
+const verifyPurchase = async (payload: {
+  userId: string;
+  receiptData?: string;
+  productId: string;
+  source: PurchaseSource;
+  purchaseToken?: string;
+  packageName?: string;
+  subscriptionId?: string;
+}) => {
+  if (payload.source === "apple") {
+    if (!payload.receiptData) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        "receiptData is required for Apple verification"
+      );
     }
 
-    // User let the session expire without paying
-    case "checkout.session.expired":
-    // Card was declined or otherwise failed
-    // eslint-disable-next-line no-fallthrough
-    case "payment_intent.payment_failed": {
-      const session = event.data.object as any;
-      await paymentFailedHandler(session);
-      break;
-    }
+    return verifyApplePurchase({
+      userId: payload.userId,
+      receiptData: payload.receiptData,
+      productId: payload.productId,
+    });
+  }
 
-    // All other events are intentionally ignored
+  if (!payload.purchaseToken || !payload.packageName || !payload.subscriptionId) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      "purchaseToken, packageName, and subscriptionId are required for Google verification"
+    );
+  }
+
+  return verifyGooglePurchase({
+    userId: payload.userId,
+    productId: payload.productId,
+    purchaseToken: payload.purchaseToken,
+    packageName: payload.packageName,
+    subscriptionId: payload.subscriptionId,
+  });
+};
+
+const handleAppleWebhook = async (req: Request) => {
+  const signedPayload = req.body.signedPayload;
+  if (!signedPayload) {
+    throw new Error("No signedPayload received");
+  }
+
+  const payload = await decodeNotificationPayload(signedPayload);
+  const notificationUUID = payload.notificationUUID;
+  const eventType = payload.notificationType as string;
+
+  const alreadyProcessed = await PaymentTransaction.findOne({
+    "webhookPayload.notificationUUID": notificationUUID,
+  });
+
+  if (alreadyProcessed) {
+    return { message: "Duplicate event ignored" };
+  }
+
+  if (!payload.data?.signedTransactionInfo) {
+    throw new Error("Missing transaction info");
+  }
+
+  const transaction = await decodeTransaction(
+    payload.data.signedTransactionInfo
+  );
+
+  const transactionId = transaction.transactionId;
+  const originalTransactionId =
+    transaction.originalTransactionId || transactionId;
+
+  const subscription = await Subscription.findOne({ originalTransactionId });
+  if (!subscription) {
+    return { message: "Subscription not found for webhook" };
+  }
+
+  let autoRenew = subscription.autoRenew;
+  if (payload.data?.signedRenewalInfo) {
+    try {
+      const renewalInfo = await decodeRenewalInfo(
+        payload.data.signedRenewalInfo
+      );
+      autoRenew = renewalInfo.autoRenewStatus === 1;
+    } catch (error) {
+      console.error("Renewal decode failed", error);
+    }
+  }
+
+  const updateData: Record<string, any> = {
+    autoRenew,
+    transactionId,
+    productId: transaction.productId,
+  };
+
+  if (transaction.expiresDate) {
+    updateData.endDate = new Date(transaction.expiresDate);
+  }
+
+  switch (eventType) {
+    case "DID_RENEW":
+    case "DID_RECOVER":
+    case "SUBSCRIBED":
+      updateData.status = "active";
+      break;
+    case "EXPIRED":
+    case "GRACE_PERIOD_EXPIRED":
+      updateData.status = "expired";
+      break;
+    case "DID_FAIL_TO_RENEW":
+      updateData.status = "payment_failed";
+      break;
+    case "REFUND":
+      updateData.status = "cancelled";
+      break;
+    case "DID_CHANGE_RENEWAL_STATUS":
+    case "DID_CHANGE_RENEWAL_PREF":
+      break;
+    default:
+      return { message: "Ignored event" };
+  }
+
+  const updated = await Subscription.findOneAndUpdate(
+    { originalTransactionId },
+    { $set: updateData },
+    { new: true }
+  );
+
+  if (!updated) {
+    return { message: "Subscription update failed" };
+  }
+
+  await logPaymentTransaction({
+    userId: updated.user.toString(),
+    subscriptionId: updated._id.toString(),
+    transactionId,
+    originalTransactionId,
+    transactionType:
+      eventType === "DID_RENEW"
+        ? PaymentTransactionType.RENEWAL
+        : PaymentTransactionType.PURCHASE,
+    status:
+      eventType === "REFUND"
+        ? PaymentTransactionStatus.REFUNDED
+        : PaymentTransactionStatus.COMPLETED,
+    platform: PaymentPlatform.APPLE_IAP,
+    productId: transaction.productId,
+    amount: updated.amount,
+    currency: updated.currency,
+    planType: undefined,
+    billingCycle: "1m",
+    purchaseDate: transaction.purchaseDate
+      ? new Date(transaction.purchaseDate)
+      : new Date(),
+    expiryDate: transaction.expiresDate
+      ? new Date(transaction.expiresDate)
+      : undefined,
+    webhookEventType: eventType,
+    webhookPayload: payload,
+    metadata: { rawTransaction: transaction },
+  });
+
+  await syncUserSubscriptionInfo(updated.user.toString());
+
+  return updated;
+};
+
+const handleGoogleWebhook = async (req: Request) => {
+  const messageData = req.body?.message?.data;
+  if (!messageData) {
+    throw new Error("Missing Pub/Sub message data");
+  }
+
+  const decoded = Buffer.from(messageData, "base64").toString("utf8");
+  const payload = JSON.parse(decoded);
+
+  const notification = payload.subscriptionNotification;
+  if (!notification) {
+    throw new Error("Missing subscriptionNotification payload");
+  }
+
+  const packageName = payload.packageName;
+  const subscriptionId = notification.subscriptionId;
+  const purchaseToken = notification.purchaseToken;
+
+  if (!packageName || !subscriptionId || !purchaseToken) {
+    throw new Error("Invalid Google RTDN payload");
+  }
+
+  const purchase = await getGoogleSubscription({
+    packageName,
+    subscriptionId,
+    purchaseToken,
+  });
+
+  const subscription = await Subscription.findOne({
+    transactionId: purchaseToken,
+  });
+
+  if (!subscription) {
+    return { message: "Subscription not found for webhook" };
+  }
+
+  const expiryDate = purchase.expiryTimeMillis
+    ? new Date(Number(purchase.expiryTimeMillis))
+    : subscription.endDate;
+
+  const updateData: Record<string, any> = {
+    endDate: expiryDate,
+    autoRenew: Boolean(purchase.autoRenewing),
+  };
+
+  switch (notification.notificationType) {
+    case 1:
+    case 2:
+    case 4:
+    case 7:
+      updateData.status = "active";
+      break;
+    case 3:
+    case 12:
+      updateData.status = "cancelled";
+      break;
+    case 5:
+    case 6:
+    case 10:
+    case 11:
+      updateData.status = "payment_failed";
+      break;
+    case 13:
+      updateData.status = "expired";
+      break;
     default:
       break;
   }
 
-  return { received: true };
+  const updated = await Subscription.findOneAndUpdate(
+    { _id: subscription._id },
+    { $set: updateData },
+    { new: true }
+  );
+
+  if (!updated) {
+    return { message: "Subscription update failed" };
+  }
+
+  await logPaymentTransaction({
+    userId: updated.user.toString(),
+    subscriptionId: updated._id.toString(),
+    transactionId: purchaseToken,
+    originalTransactionId: purchase.linkedPurchaseToken || undefined,
+    transactionType: PaymentTransactionType.RENEWAL,
+    status: PaymentTransactionStatus.COMPLETED,
+    platform: PaymentPlatform.GOOGLE_PLAY,
+    productId: subscriptionId,
+    amount: updated.amount,
+    currency: updated.currency,
+    planType: undefined,
+    billingCycle: "1m",
+    purchaseDate: updated.startDate,
+    expiryDate,
+    orderRef: purchase.orderId || undefined,
+    webhookEventType: String(notification.notificationType),
+    webhookPayload: payload,
+    metadata: { rawPurchase: purchase },
+  });
+
+  await syncUserSubscriptionInfo(updated.user.toString());
+
+  return updated;
 };
 
-/* ================================================================== */
-/*  EXPORTS                                                            */
-/* ================================================================== */
-export const paymentService = {
-  stripePay,
-  stripeWebhookHandling,
+export const PaymentService = {
+  verifyPurchase,
+  handleAppleWebhook,
+  handleGoogleWebhook,
 };

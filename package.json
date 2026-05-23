@@ -36,6 +36,8 @@
     "typescript-eslint": "^8.56.0"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0",
+    "app-store-server-api": "^0.17.3",
     "axios": "^1.15.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^1.41.3",
@@ -46,6 +48,7 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "firebase-admin": "^13.7.0",
+    "googleapis": "^154.1.0",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.10.1",
     "jose": "^6.2.2",

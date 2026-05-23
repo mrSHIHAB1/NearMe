@@ -10,18 +10,12 @@ import "./app/config/passport";
 import expressSession from 'express-session';
 import { envVars } from './app/config/env';
 import { initSocket } from './app/socket';
-import { paymentControllers } from './app/modules/payment/payment.controller';
 
 const app = express();
 
 const server = http.createServer(app);
 
-// Stripe webhook must stay before express.json()
-app.post(
-  '/payment/stripe_webhook',
-  express.raw({ type: 'application/json' }),
-  paymentControllers.stripeWebhook
-);
+// Stripe webhook disabled
 
 // Init Socket connection
 initSocket(server);

@@ -29,6 +29,9 @@ const subscriptionSchema = new Schema<TSubscription>(
     paymentMethod: { type: String },
     paymentGateway: { type: String },
     transactionId: { type: String },
+    originalTransactionId: { type: String },
+    productId: { type: String },
+    platform: { type: String, enum: ["APPLE_IAP", "GOOGLE_PLAY"] },
 
     isCurrent: { type: Boolean, default: true },
   },
@@ -37,6 +40,7 @@ const subscriptionSchema = new Schema<TSubscription>(
 
 subscriptionSchema.index({ user: 1, isCurrent: 1 });
 subscriptionSchema.index({ endDate: 1 });
+subscriptionSchema.index({ originalTransactionId: 1 });
 
 export const Subscription = model<TSubscription>(
   "Subscription",

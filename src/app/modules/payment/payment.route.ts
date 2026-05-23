@@ -1,32 +1,31 @@
-import express, { Router } from "express";
-import { Role } from "../user/user.interface";
+import express from "express";
+import { PaymentController } from "./payment.controller";
 import { checkAuth } from "../../middlewares/checkAuth";
-import { paymentControllers } from "./payment.controller";
+import { Role } from "../user/user.interface";
 
-const router = Router();
+const router = express.Router();
 
-/* ------------------------------------------------------------------ */
-/*  Stripe Checkout — provider initiates a plan subscription          */
-/*  Body: { serviceId: string, planId: string }                       */
-/* ------------------------------------------------------------------ */
 router.post(
-  "/stripe_pay",
-  checkAuth(Role.PROVIDER),
-  paymentControllers.stripePayment
+  "/verify-purchase",
+  checkAuth(...Object.values(Role)),
+  PaymentController.verifyPurchase
 );
 
-/* ------------------------------------------------------------------ */
-/*  Stripe Webhook — called by Stripe after payment events            */
-/*                                                                     */
-/*  CRITICAL: express.raw() must be used here so the raw request body */
-/*  is available for Stripe's signature verification.                  */
-/*  Make sure your app.ts does NOT apply express.json() globally       */
-/*  before this route, or mount this router BEFORE the json middleware.*/
-/* ------------------------------------------------------------------ */
-router.post(
-  "/stripe_webhook",
-  express.raw({ type: "application/json" }),
-  paymentControllers.stripeWebhook
+router.post("/apple-webhook", PaymentController.appleWebhook);
+router.post("/google-webhook", PaymentController.googleWebhook);
+
+// 📜 Get transaction history for user
+router.get(
+  "/transaction-history",
+  checkAuth(...Object.values(Role)),
+  PaymentController.getTransactionHistory
 );
 
-export const PaymentRouter = router;
+// 📊 Get payment summary for user
+router.get(
+  "/payment-summary",
+  checkAuth(...Object.values(Role)),
+  PaymentController.getPaymentSummary
+);
+
+export const PaymentRoutes = router;

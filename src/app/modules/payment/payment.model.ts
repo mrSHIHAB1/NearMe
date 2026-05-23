@@ -1,28 +1,66 @@
 import { model, Schema } from "mongoose";
-import { IPayment, PaymentProvider, PaymentStatus } from "./payment.interface";
+import {
+  IPaymentTransaction,
+  PaymentTransactionType,
+  PaymentTransactionStatus,
+  PaymentPlatform,
+} from "./payment.interface";
 
-const PaymentSchema = new Schema<IPayment>(
+const paymentTransactionSchema = new Schema<IPaymentTransaction>(
   {
-    user: {
+    userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
-    service: {
+    subscriptionId: {
       type: Schema.Types.ObjectId,
-      ref: "Service",
-      required: true,
+      ref: "Subscription",
+      sparse: true,
     },
-    plan: {
-      type: Schema.Types.ObjectId,
-      ref: "Plan",
-      required: true,
-    },
-    transaction_id: {
+
+    // Transaction Identifiers
+    transactionId: {
       type: String,
       required: true,
       unique: true,
-      trim: true,
+      index: true,
+    },
+    originalTransactionId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    orderRef: {
+      type: String,
+      sparse: true,
+    },
+
+    // Transaction Details
+    transactionType: {
+      type: String,
+      enum: Object.values(PaymentTransactionType),
+      required: true,
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: Object.values(PaymentTransactionStatus),
+      default: PaymentTransactionStatus.PENDING,
+      index: true,
+    },
+
+    // Payment Info
+    platform: {
+      type: String,
+      enum: Object.values(PaymentPlatform),
+      required: true,
+      index: true,
+    },
+    productId: {
+      type: String,
+      required: true,
     },
     amount: {
       type: Number,
@@ -31,45 +69,75 @@ const PaymentSchema = new Schema<IPayment>(
     },
     currency: {
       type: String,
+      default: "USD",
       uppercase: true,
-      trim: true,
-      default: "GBP",
     },
-    payment_gateway_charge: {
-      type: Number,
-      min: 0,
-    },
-    provider: {
+
+    // Plan Info
+    planType: {
       type: String,
-      enum: Object.values(PaymentProvider),
-      required: true,
+      sparse: true,
     },
-    payment_status: {
+    billingCycle: {
       type: String,
-      enum: Object.values(PaymentStatus),
+      enum: ["1m", "3m", "1y"],
+      sparse: true,
+    },
+
+    // Dates
+    purchaseDate: {
+      type: Date,
       required: true,
-      default: PaymentStatus.PENDING,
       index: true,
     },
-    invoice_url: {
-      type: String,
-      trim: true,
+    expiryDate: {
+      type: Date,
+      sparse: true,
     },
-    stripe_session_id: {
-      type: String,
-      trim: true,
+    refundDate: {
+      type: Date,
+      sparse: true,
     },
-    payment_intent_id: {
+
+    // Webhook/Event Info
+    webhookEventType: {
       type: String,
-      trim: true,
+      sparse: true,
+    },
+    webhookPayload: {
+      type: Schema.Types.Mixed,
+      sparse: true,
+    },
+
+    // Error Handling
+    errorMessage: {
+      type: String,
+      sparse: true,
+    },
+    retryCount: {
+      type: Number,
+      default: 0,
+    },
+
+    // Metadata
+    metadata: {
+      type: Schema.Types.Mixed,
+      sparse: true,
     },
   },
-  {
-    timestamps: true,
-    versionKey: false,
-  }
+  { timestamps: true }
 );
 
-PaymentSchema.index({ service: 1, transaction_id: 1 }, { unique: true });
+// Compound indices for common queries
+paymentTransactionSchema.index({ userId: 1, createdAt: -1 });
+paymentTransactionSchema.index({ userId: 1, transactionType: 1 });
+paymentTransactionSchema.index({ userId: 1, status: 1 });
+paymentTransactionSchema.index({ userId: 1, platform: 1 });
+paymentTransactionSchema.index({ transactionId: 1, platform: 1 });
 
-export const PaymentModel = model<IPayment>("Payment", PaymentSchema);
+const PaymentTransaction = model<IPaymentTransaction>(
+  "PaymentTransaction",
+  paymentTransactionSchema
+);
+
+export default PaymentTransaction;

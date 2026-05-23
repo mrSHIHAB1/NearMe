@@ -16,8 +16,8 @@ import { buildGeoQuery } from "../../utils/getNearestServicesHelper/getNearestSe
 import { getAllDescendantCategoryIds } from "../category/category.service";
 import { ServiceAnalytics } from "../serviceAnalytics/serviceAnalytics.model";
 import { Plan } from "../plan/plan.model";
-import { JwtPayload } from "jsonwebtoken";
-import { paymentService } from "../payment/payment.service";
+import { getEffectivePlan } from "../../utils/subscriptionHelper/getEffectivePlan";
+
 
 // ─── Shared: aggregate ratings for a list of serviceIds ───────────────────────
 const aggregateRatings = async (serviceIds: any[]) => {
@@ -68,6 +68,7 @@ const createService = async (
 ): Promise<{ free: true } | { checkout_url: string | null }> => {
   /* ── 1. Guard: one service per provider ── */
   const existingService = await Service.findOne({ provider: userId });
+  console.log(existingService, "Existing service for userId:", userId);
   if (existingService) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -89,33 +90,32 @@ const createService = async (
   const incomingPhotosCount = payload.media?.length || 0;
   await enforcePhotoLimit(userId, 0, incomingPhotosCount);
  
-  /* ── 4. Create the service (subscription fields default to inactive) ── */
+  /* ── 4. Ensure user is on the selected plan ── */
+  const effectivePlan: any = await getEffectivePlan(userId);
+  if (effectivePlan?._id?.toString() !== plan._id.toString()) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      "Please subscribe to the selected plan before creating a service"
+    );
+  }
+
+  /* ── 5. Create the service (subscription fields default to active) ── */
   const { planId, ...serviceData } = payload;
  
   const service = await Service.create({
     ...serviceData,
     provider: userId,
-    subscriptionStatus: "inactive", // will be updated after payment
+    subscriptionStatus: "active",
   });
  
-  /* ── 5. Link service to user ── */
+  /* ── 6. Link service to user ── */
   await User.findByIdAndUpdate(userId, {
     service: service._id,
     hasService: true,
   });
  
-  /* ── 6. Initiate payment (free = auto-activate, paid = Stripe) ── */
-  // We build a fake JwtPayload-like object because paymentService.stripePay
-  // expects one. Adjust if your JwtPayload shape differs.
-  const userJwt: JwtPayload = { userId, role: "PROVIDER" } as JwtPayload;
- 
-  const paymentResult = await paymentService.stripePay(
-    userJwt,
-    service._id.toString(),
-    planId
-  );
- 
-  return paymentResult;
+  /* ── 7. Payment disabled (Stripe removed) ── */
+  return { free: true };
 };
 
 const getAllServices = async (query: Record<string, string>) => {

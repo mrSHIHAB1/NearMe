@@ -1,61 +1,158 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { NextFunction, Request, Response } from "express";
+import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 
+import { PaymentService } from "./payment.service";
+import { JwtPayload } from "jsonwebtoken";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
-import { paymentService } from "./payment.service";
-import { JwtPayload } from "jsonwebtoken";
+import PaymentTransaction from "./payment.model";
 
-/* ------------------------------------------------------------------ */
-/*  POST /payment/stripe_pay                                           */
-/*  Body: { serviceId, planId }                                       */
-/* ------------------------------------------------------------------ */
-const stripePayment = catchAsync(
-  async (req: Request, res: Response, _next: NextFunction) => {
-    const user = req.user as JwtPayload;
-    const { serviceId, planId } = req.body;
+const verifyPurchase = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.user as JwtPayload;
 
-    const result = await paymentService.stripePay(user, serviceId, planId);
+  const result = await PaymentService.verifyPurchase({
+    ...req.body,
+    userId,
+  });
 
-    // Differentiate free vs paid in the response so the frontend
-    // knows whether to redirect to Stripe or straight to the dashboard.
-    if ("free" in result) {
-      return sendResponse(res, {
-        success: true,
-        statusCode: StatusCodes.CREATED,
-        message: "Free plan activated successfully",
-        data: { free: true },
-      });
-    }
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: "Subscription verified successfully",
+    data: result,
+  });
+});
 
-    return sendResponse(res, {
+const appleWebhook = async (req: Request, res: Response) => {
+  try {
+    const result = await PaymentService.handleAppleWebhook(req);
+
+    res.status(200).json({
       success: true,
-      statusCode: StatusCodes.CREATED,
-      message: "Checkout session created",
-      data: result, // { checkout_url: "https://checkout.stripe.com/..." }
-    });
-  }
-);
-
-/* ------------------------------------------------------------------ */
-/*  POST /payment/stripe_webhook                                       */
-/*  NOTE: this route must use express.raw() middleware — see route.ts */
-/* ------------------------------------------------------------------ */
-const stripeWebhook = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const result = await paymentService.stripeWebhookHandling(req);
-
-    return sendResponse(res, {
-      success: true,
-      statusCode: StatusCodes.OK,
-      message: "Webhook received",
+      message: "Webhook processed",
       data: result,
     });
+  } catch (error: any) {
+    console.error("Webhook Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong",
+    });
+  }
+};
+
+const googleWebhook = async (req: Request, res: Response) => {
+  try {
+    const result = await PaymentService.handleGoogleWebhook(req);
+
+    res.status(200).json({
+      success: true,
+      message: "Webhook processed",
+      data: result,
+    });
+  } catch (error: any) {
+    console.error("Google webhook error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong",
+    });
+  }
+};
+
+/**
+ * Get payment transaction history for the authenticated user
+ */
+const getTransactionHistory = catchAsync(
+  async (req: Request, res: Response) => {
+    const { id } = req.user as JwtPayload;
+    const { limit = 50, skip = 0, type, status } = req.query;
+
+    const filter: any = { userId: id };
+
+    if (type) {
+      filter.transactionType = type;
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    const transactions = await PaymentTransaction.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .skip(Number(skip));
+
+    const total = await PaymentTransaction.countDocuments(filter);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: "Payment transaction history retrieved",
+      data: {
+        transactions,
+        pagination: {
+          total,
+          limit: Number(limit),
+          skip: Number(skip),
+        },
+      },
+    });
   }
 );
 
-export const paymentControllers = {
-  stripePayment,
-  stripeWebhook,
+/**
+ * Get payment summary for the authenticated user
+ */
+const getPaymentSummary = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.user as JwtPayload;
+
+  const totalSpent = await PaymentTransaction.aggregate([
+    {
+      $match: {
+        userId: id,
+        status: "COMPLETED",
+        transactionType: { $in: ["PURCHASE", "RENEWAL"] },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$amount" },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const transactionsByType = await PaymentTransaction.aggregate([
+    {
+      $match: { userId: id },
+    },
+    {
+      $group: {
+        _id: "$transactionType",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: "Payment summary retrieved",
+    data: {
+      totalSpent: totalSpent[0]?.total || 0,
+      transactionCount: totalSpent[0]?.count || 0,
+      transactionsByType,
+    },
+  });
+});
+
+export const PaymentController = {
+  verifyPurchase,
+  appleWebhook,
+  googleWebhook,
+  getTransactionHistory,
+  getPaymentSummary,
 };
