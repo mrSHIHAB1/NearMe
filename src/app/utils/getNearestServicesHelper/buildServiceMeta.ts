@@ -23,6 +23,8 @@ export const buildServiceMeta = (
     service_subCategory: service.service_subCategory ?? null,
     service_childCategory: service.service_childCategory ?? null,
     provider: {
+      _id: service.provider?._id ?? null,
+      name: service.provider?.name ?? null,
       planName: service.provider?.subscriptionInfo?.planName ?? "free",
       badgeType: service.provider?.subscriptionInfo?.badgeType ?? "none",
       priorityScore: service.provider?.subscriptionInfo?.priorityScore ?? 0,

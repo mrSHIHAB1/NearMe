@@ -45,7 +45,7 @@ const aggregateRatings = async (serviceIds: any[]) => {
 const SERVICE_SELECT =
   "_id service_name company_logo location openingTime closingTime allTimeAvailability service_address averageRating service_subCategory service_childCategory";
 const PROVIDER_SELECT =
-  "subscriptionInfo.planName subscriptionInfo.badgeType subscriptionInfo.priorityScore";
+  "name subscriptionInfo.planName subscriptionInfo.badgeType subscriptionInfo.priorityScore";
 
 /* ------------------------------------------------------------------ */
 /*  CREATE SERVICE + INITIATE PLAN PAYMENT                            */

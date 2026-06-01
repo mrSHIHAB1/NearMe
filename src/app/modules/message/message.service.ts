@@ -254,7 +254,7 @@ const getConversationsService = async (user: JwtPayload) => {
       $project: {
         user: {
           _id: 1,
-          fullName: 1,
+          name: 1,
           email: 1,
           avatar: 1,
         },

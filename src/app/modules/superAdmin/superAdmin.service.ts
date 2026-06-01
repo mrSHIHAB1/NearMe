@@ -3,7 +3,7 @@ import httpStatus from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { User } from "../user/user.model";
 import { Service } from "../service/service.model";
-import { PaymentModel } from "../payment/payment.model";
+import PaymentModel from "../payment/payment.model";
 import { ServiceAnalytics } from "../serviceAnalytics/serviceAnalytics.model";
 import { IsActive, Role } from "../user/user.interface";
 import {
