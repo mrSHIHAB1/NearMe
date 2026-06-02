@@ -104,10 +104,6 @@ const getDirectMessagesService = async (
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
-  // Pagination parameters
-  const page = Number(query.page) || 1;
-  const limit = Number(query.limit) || 10;
-  const skip = (page - 1) * limit;
   const sort = query.sort || 'createdAt'; // Default: oldest first for chat
 
   // Build filter conditions - only direct messages between two users
@@ -125,11 +121,9 @@ const getDirectMessagesService = async (
     ],
   };
 
-  // Fetch messages with pagination
+  // Fetch messages without pagination
   const messages = await Message.find(filterConditions)
     .sort(sort)
-    .skip(skip)
-    .limit(limit)
     .populate('sender', 'name picture')
     .populate('receiver', 'name picture')
     .populate({
@@ -137,16 +131,6 @@ const getDirectMessagesService = async (
       select: 'message sender',
       populate: { path: 'sender', select: 'name' },
     });
-
-  // Get total count for pagination metadata
-  const totalCount = await Message.countDocuments(filterConditions);
-
-  const metaData = {
-    page,
-    limit,
-    total: totalCount,
-    totalPage: Math.ceil(totalCount / limit),
-  };
 
   // Mark messages from other user as DELIVERED if they were SENT
   await Message.updateMany(
@@ -158,7 +142,7 @@ const getDirectMessagesService = async (
     { status: MessageStatus.DELIVERED }
   );
 
-  return { messages, metaData };
+  return messages;
 };
 
 // MARK MESSAGES AS SEEN
