@@ -240,7 +240,7 @@ const getConversationsService = async (user: JwtPayload) => {
           _id: 1,
           name: 1,
           email: 1,
-          avatar: 1,
+          picture: 1,
         },
         lastMessage: 1,
         unreadCount: 1,

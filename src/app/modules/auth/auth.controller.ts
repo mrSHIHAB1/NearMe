@@ -11,6 +11,25 @@ import { JwtPayload } from "jsonwebtoken";
 import { createUserTokens } from "../../utils/userToken";
 import { envVars } from "../../config/env";
 import passport from "passport";
+import { Role } from "../user/user.interface";
+
+const buildGoogleState = (redirect: string, role?: string) => {
+    const params = new URLSearchParams();
+    if (role) {
+        params.set("role", role);
+    }
+    if (redirect) {
+        params.set("redirect", redirect);
+    }
+    return params.toString();
+};
+
+const parseGoogleState = (state?: string) => {
+    const params = new URLSearchParams(state || "");
+    const redirect = params.get("redirect") || "/";
+    const role = params.get("role") || undefined;
+    return { redirect, role };
+};
 
 const credentialsLogin = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate("local", async (err: any, user: any, info: any) => {
@@ -152,18 +171,48 @@ const resetPassword = catchAsync(
 
 
 const googleRegister = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const redirect = req.query.redirect || "/";
+    const redirect = typeof req.query.redirect === "string" ? req.query.redirect : "/";
+    const roleParam = typeof req.query.role === "string" ? req.query.role : undefined;
+
+    if (roleParam && !Object.values(Role).includes(roleParam as Role)) {
+        throw new AppError(httpStatus.BAD_REQUEST, "Invalid role parameter");
+    }
+
+    const state = buildGoogleState(redirect, roleParam);
 
     passport.authenticate("google", {
         scope: ["profile", "email"],
-        state: redirect as string,
-        prompt: 'consent select_account'
+        state,
+        prompt: "consent select_account"
+    })(req, res, next)
+})
+
+const googleRegisterUser = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const redirect = typeof req.query.redirect === "string" ? req.query.redirect : "/";
+    const state = buildGoogleState(redirect, Role.USER);
+
+    passport.authenticate("google", {
+        scope: ["profile", "email"],
+        state,
+        prompt: "consent select_account"
+    })(req, res, next)
+})
+
+const googleRegisterProvider = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const redirect = typeof req.query.redirect === "string" ? req.query.redirect : "/";
+    const state = buildGoogleState(redirect, Role.PROVIDER);
+
+    passport.authenticate("google", {
+        scope: ["profile", "email"],
+        state,
+        prompt: "consent select_account"
     })(req, res, next)
 })
 
 const googleCallbackController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
 
-    let redirectTo = req.query.state ? req.query.state as string : "";
+    const stateValue = typeof req.query.state === "string" ? req.query.state : "";
+    let { redirect: redirectTo } = parseGoogleState(stateValue);
 
     if (redirectTo.startsWith("/")) {
         redirectTo = redirectTo.slice(1);
@@ -180,16 +229,61 @@ const googleCallbackController = catchAsync(async (req: Request, res: Response, 
 
 // REGISTER WITH GOOGLE FOR APPLE DEVICE
 const googleAuthSystem = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const result = await AuthServices.googleAuthSystem(req.body);
+    async (req: Request, res: Response, next: NextFunction) => {
+        const roleParam = typeof req.params.role === "string" ? req.params.role : undefined;
+        const safeBody = req.body && typeof req.body === "object" ? req.body : {};
+        const payload = {
+                ...safeBody,
+                role: roleParam || (safeBody as { role?: string }).role,
+        };
 
-    sendResponse(res, {
-      success: true,
-      statusCode: 200,
-      message: 'Authentication success',
-      data: result,
-    })
-  }
+        const result = await AuthServices.googleAuthSystem(payload);
+
+        sendResponse(res, {
+            success: true,
+            statusCode: 200,
+            message: 'Authentication success',
+            data: result,
+        })
+    }
+);
+
+const googleAuthSystemUser = catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const safeBody = req.body && typeof req.body === "object" ? req.body : {};
+        const payload = {
+                ...safeBody,
+                role: Role.USER,
+        };
+
+        const result = await AuthServices.googleAuthSystem(payload);
+
+        sendResponse(res, {
+            success: true,
+            statusCode: 200,
+            message: 'Authentication success',
+            data: result,
+        })
+    }
+);
+
+const googleAuthSystemProvider = catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const safeBody = req.body && typeof req.body === "object" ? req.body : {};
+        const payload = {
+                ...safeBody,
+                role: Role.PROVIDER,
+        };
+
+        const result = await AuthServices.googleAuthSystem(payload);
+
+        sendResponse(res, {
+            success: true,
+            statusCode: 200,
+            message: 'Authentication success',
+            data: result,
+        })
+    }
 );
 
 export const AuthControllers = {
@@ -202,5 +296,9 @@ export const AuthControllers = {
     forgetPassword,
     googleCallbackController,
     googleRegister,
-    googleAuthSystem
+    googleRegisterUser,
+    googleRegisterProvider,
+    googleAuthSystem,
+    googleAuthSystemUser,
+    googleAuthSystemProvider
 }

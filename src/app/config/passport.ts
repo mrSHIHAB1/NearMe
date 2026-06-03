@@ -7,6 +7,13 @@ import { IsActive, Role } from "../modules/user/user.interface";
 import { Strategy as LocalStrategy } from "passport-local";
 import bcryptjs from 'bcryptjs';
 
+const parseGoogleState = (state?: string) => {
+    const params = new URLSearchParams(state || "");
+    const redirect = params.get("redirect") || "/";
+    const role = params.get("role") || undefined;
+    return { redirect, role };
+};
+
 passport.use(
     new LocalStrategy({
         usernameField: "email",
@@ -58,16 +65,26 @@ passport.use(
 passport.use(new GoogleStrategy({
     clientID: envVars.GOOGLE_CLIENT_ID,
     clientSecret: envVars.GOOGLE_CLIENT_SECRET,
-    callbackURL: envVars.GOOGLE_CALLBACK_URL
-}, async (accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {
+    callbackURL: envVars.GOOGLE_CALLBACK_URL,
+    passReqToCallback: true
+}, async (req: any, accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {
     try {
         const email = profile.emails?.[0].value;
+        const stateValue = typeof req?.query?.state === "string" ? req.query.state : "";
+        const { role: roleParam } = parseGoogleState(stateValue);
+        if (roleParam && !Object.values(Role).includes(roleParam as Role)) {
+            return done(null, false, { message: "Invalid role parameter" });
+        }
+        const resolvedRole = roleParam ? (roleParam as Role) : Role.USER;
 
         if (!email) {
             return done(null, false, { message: "No email found" });
         }
 
         let isUserExist = await User.findOne({ email })
+        if (isUserExist && roleParam && isUserExist.role !== resolvedRole) {
+            return done(null, false, { message: "Role mismatch for this account" })
+        }
         if (isUserExist && !isUserExist.isVerified) {
             // throw new AppError(httpStatus.BAD_REQUEST, "User is not verified")
             // done("User is not verified")
@@ -89,7 +106,7 @@ passport.use(new GoogleStrategy({
                 email,
                 name: profile.displayName,
                 picture: profile.photos?.[0].value,
-                role: Role.USER,
+                role: resolvedRole,
                 isVerified: true,
                 auths: [
                     {
