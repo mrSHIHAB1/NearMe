@@ -24,6 +24,7 @@ export type SubscriptionStatus = "active" | "inactive" | "expired";
 export interface IService {
   id?: Types.ObjectId;
   provider?: Types.ObjectId;
+  provider_name?: string;
   service_name?: string;
   service_category?: Types.ObjectId;
   service_subCategory?: Types.ObjectId;

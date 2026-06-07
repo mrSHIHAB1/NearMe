@@ -48,6 +48,7 @@ const createService = catchAsync(async (req: Request, res: Response) => {
       data: result, // { free: true }
     });
   }
+  
  
   return sendResponse(res, {
     success: true,

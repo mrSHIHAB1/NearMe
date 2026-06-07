@@ -25,6 +25,7 @@ const serviceSchema = new Schema<IService>(
       required: true,
       unique: true, // one service per provider
     },
+    provider_name: { type: String, required: true },
     service_name: { type: String, required: true },
     service_category: {
       type: Schema.Types.ObjectId,

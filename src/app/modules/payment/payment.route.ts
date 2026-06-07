@@ -14,14 +14,14 @@ router.post(
 router.post("/apple-webhook", PaymentController.appleWebhook);
 router.post("/google-webhook", PaymentController.googleWebhook);
 
-// 📜 Get transaction history for user
+//  Get transaction history for user
 router.get(
   "/transaction-history",
   checkAuth(...Object.values(Role)),
   PaymentController.getTransactionHistory
 );
 
-// 📊 Get payment summary for user
+// Get payment summary for user
 router.get(
   "/payment-summary",
   checkAuth(...Object.values(Role)),

@@ -102,9 +102,13 @@ const createService = async (
   /* ── 5. Create the service (subscription fields default to active) ── */
   const { planId, ...serviceData } = payload;
  
+  // Fetch provider name to store with the service snapshot
+  const providerUser = await User.findById(userId).select("name");
+
   const service = await Service.create({
     ...serviceData,
     provider: userId,
+    provider_name: providerUser?.name || "",
     subscriptionStatus: "active",
   });
  

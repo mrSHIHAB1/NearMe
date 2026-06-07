@@ -40,10 +40,7 @@ router.post("/nearest", ServiceControllers.getNearestServices);
 
 // Global search by service name
 router.get("/search", ServiceControllers.searchServices);
-
-
 router.post("/by-category", ServiceControllers.getServicesByCategory);
-
 router.get("/:id", ServiceControllers.getSingleService);
 
 router.patch(
