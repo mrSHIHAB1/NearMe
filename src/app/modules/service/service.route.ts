@@ -24,14 +24,14 @@ router.post(
 
 router.get(
   "/all-services",
-  checkAuth(Role.PROVIDER),
+  checkAuth(...Object.values(Role)),
   ServiceControllers.getAllServices
 );
 
 // Get provider's own service
 router.get(
   "/my-service",
-  checkAuth(Role.PROVIDER),
+  checkAuth(...Object.values(Role)),
   ServiceControllers.getMyService
 );
 
@@ -45,7 +45,7 @@ router.get("/:id", ServiceControllers.getSingleService);
 
 router.patch(
   "/:id",
-  checkAuth(Role.PROVIDER),
+  checkAuth(...Object.values(Role)),
   multerUpload.fields([
     { name: "media" },
     { name: "company_logo", maxCount: 1 },

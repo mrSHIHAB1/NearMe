@@ -27,6 +27,7 @@ router.get(
   checkAuth(...Object.keys(Role)),
   NotificationController.getUserNotifications
 );
+
 router.post(
   '/send_system_notification',
   checkAuth(Role.SUPER_ADMIN),
