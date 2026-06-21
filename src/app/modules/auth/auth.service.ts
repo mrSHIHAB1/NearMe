@@ -115,8 +115,8 @@ const forgetPassword = async (email: string) => {
   const hashedOTP = await bcryptjs.hash(otp, Number(envVars.BCRYPT_SALT_ROUND)); // Hashed OTP
 
   // CACHED OTP TO REDIS
-  await redisClient.set(`otp:${user.email}`, hashedOTP, { EX: 120 }); // 2 min
-
+  // await redisClient.set(`otp:${user.email}`, hashedOTP, { EX: 120 }); // 2 min
+await redisClient.set(`otp:${user.email}`, hashedOTP, "EX", 120);
   // SENDING OTP TO EMAIL
   await sendEmail({
     to: user.email,

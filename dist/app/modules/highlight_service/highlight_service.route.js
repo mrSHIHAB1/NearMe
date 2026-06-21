@@ -1,0 +1,17 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.HighlightServiceRoutes = void 0;
+const express_1 = require("express");
+const highlight_service_controller_1 = require("./highlight_service.controller");
+const validateRequest_1 = require("../../middlewares/validateRequest");
+const highlight_service_validation_1 = require("./highlight_service.validation");
+const checkAuth_1 = require("../../middlewares/checkAuth");
+const user_interface_1 = require("../user/user.interface");
+const multer_config_1 = require("../../config/multer.config");
+const router = (0, express_1.Router)();
+router.post("/", (0, checkAuth_1.checkAuth)(user_interface_1.Role.PROVIDER), multer_config_1.multerUpload.single("image"), (0, validateRequest_1.validateRequest)(highlight_service_validation_1.createHighlightServiceZodSchema), highlight_service_controller_1.HighlightServiceControllers.createHighlight);
+router.get("/service/:serviceId", highlight_service_controller_1.HighlightServiceControllers.getHighlightsByService);
+router.get("/:id", highlight_service_controller_1.HighlightServiceControllers.getSingleHighlight);
+router.patch("/:id", (0, checkAuth_1.checkAuth)(user_interface_1.Role.PROVIDER), multer_config_1.multerUpload.single("image"), (0, validateRequest_1.validateRequest)(highlight_service_validation_1.updateHighlightServiceZodSchema), highlight_service_controller_1.HighlightServiceControllers.updateHighlight);
+router.delete("/:id", (0, checkAuth_1.checkAuth)(user_interface_1.Role.PROVIDER), highlight_service_controller_1.HighlightServiceControllers.deleteHighlight);
+exports.HighlightServiceRoutes = router;

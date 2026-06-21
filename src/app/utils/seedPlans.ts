@@ -81,8 +81,7 @@ export const seedPlans = async () => {
   ];
 
   for (const plan of plans) {
-    await Plan.updateOne({ name: plan.name }, { $set: plan }, { upsert: true }
-    );
+    await Plan.updateOne({ name: plan.name as any }, { $set: plan }, { upsert: true });
   }
   console.log("Plans seeded successfully");
 };
