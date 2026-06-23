@@ -16,6 +16,7 @@ import { redisClient } from '../../config/redis.config';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { GoogleIdTokenPayload, GoogleUserInfoPayload } from './auth.interface';
 import axios from 'axios';
+import { verifyAppleToken } from '../../utils/appleVerify';
 
 const credentialsLogin = async (payload: Partial<IUser>) => {
   const { email, password } = payload;
@@ -455,7 +456,79 @@ const googleAuthSystem = async (payload: any) => {
     refreshToken: userTokens.refreshToken,
   };
 };
+export const appleLogin = async (identityToken: string, role: Role = Role.USER) => {
+  if (!identityToken) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Apple identity token required");
+  }
 
+  const appleUser: any = await verifyAppleToken(identityToken);
+
+  const appleId = appleUser.sub;
+  const email = appleUser.email?.toLowerCase();
+
+  if (!appleId || !email) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, "Invalid Apple token");
+  }
+
+  // Find user by apple provider OR email
+  let user = await User.findOne({
+    $or: [
+      { email },
+      { auths: { $elemMatch: { provider: "apple", providerId: appleId } } }
+    ]
+  });
+
+  // Create user if not exists
+  if (!user) {
+    user = await User.create({
+      email,
+      role,
+      isVerified: true,
+      auths: [
+        {
+          provider: "apple",
+          providerId: appleId,
+        },
+      ],
+    });
+  } else {
+    // attach apple provider if missing
+    const hasApple = user.auths?.some(
+      (a) => a.provider === "apple" && a.providerId === appleId
+    );
+
+    if (!hasApple) {
+      user.auths.push({
+        provider: "apple",
+        providerId: appleId,
+      });
+      user.isVerified = true;
+      await user.save();
+    }
+  }
+
+  // BLOCKED / DELETED checks (same as Google)
+  if (user.isDeleted) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "User was deleted!");
+  }
+
+  if (user.isActive === IsActive.BLOCKED || user.isActive === IsActive.INACTIVE) {
+    throw new AppError(StatusCodes.BAD_REQUEST, `User is ${user.isActive}`);
+  }
+
+  // TOKENS (SAME AS GOOGLE)
+  const userTokens = await createUserTokens({
+    _id: user._id,
+    email: user.email,
+    role: user.role,
+  });
+
+  return {
+    accessToken: userTokens.accessToken,
+    refreshToken: userTokens.refreshToken,
+    user,
+  };
+};
 export const AuthServices = {
   credentialsLogin,
   getNewAccessToken,
@@ -463,5 +536,6 @@ export const AuthServices = {
   resetPassword,
   forgetPassword,
   verifyForgetPasswordOTP,
-  googleAuthSystem
+  googleAuthSystem,
+   appleLogin,
 }

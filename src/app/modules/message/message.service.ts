@@ -59,14 +59,16 @@ const sendDirectMessageService = async (
     status: MessageStatus.SENT,
     replyTo: payload.replyTo,
   });
-  
-  io.to(onlineUsers[receiverId]).emit('direct_message', message);
-
-  // Populate sender and replyTo details
+  // Populate sender and replyTo details before emitting so clients receive
+  // the populated fields (name, picture, reply info)
   await message.populate([
     { path: 'sender', select: 'name picture' },
     { path: 'replyTo', select: 'message sender' },
   ]);
+
+  // Emit to rooms named by userId (sockets join a room with their userId)
+  io.to(receiverId).emit('direct_message', message);
+  io.to(senderId).emit('direct_message', message);
 
   const notificationPayload = {
     user: new Types.ObjectId(receiverId),
@@ -168,9 +170,10 @@ const markMessagesAsSeenService = async (
     { status: MessageStatus.SEEN }
   );
 
-  // Notify sender via socket that messages have been seen
+  // Notify sender via socket that messages have been seen. Emit to the
+  // user's room so all connected devices receive the update.
   if (onlineUsers[otherUserId]) {
-    io.to(onlineUsers[otherUserId]).emit('messages_seen', {
+    io.to(otherUserId).emit('messages_seen', {
       userId: userId,
       count: result.modifiedCount,
     });

@@ -8,6 +8,7 @@ const router = Router();
 
 router.get("/dashboard", checkAuth(Role.SUPER_ADMIN), SuperAdminController.getDashboard);
 router.get("/service-providers", checkAuth(Role.SUPER_ADMIN), SuperAdminController.getServiceProviders);
+router.get("/service-summary", checkAuth(Role.SUPER_ADMIN), SuperAdminController.getServiceSummary);
 router.patch(
   "/service-providers/:serviceId/suspend",
   checkAuth(Role.SUPER_ADMIN),

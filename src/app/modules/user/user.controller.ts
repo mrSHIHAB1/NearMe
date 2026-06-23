@@ -146,11 +146,29 @@ const getSingleUser = catchAsync(async (req: Request, res: Response, next: NextF
     data: result.data
   })
 })
+
+const updateFcmToken = catchAsync(async (req, res) => {
+  const { fcmToken } = req.body;
+  const decodedToken = req.user as JwtPayload;
+
+  const result = await UserServices.updateFcmToken(
+    decodedToken.userId,
+    fcmToken
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: 200,
+    message: "FCM token updated successfully",
+    data: result,
+  });
+});
 export const UserControllers = {
   createUser,
   updateUserLocation,
   getAllUsers,
   updateUser,
+  updateFcmToken,
   getSingleUser,
   getMe,
   verifyUser,

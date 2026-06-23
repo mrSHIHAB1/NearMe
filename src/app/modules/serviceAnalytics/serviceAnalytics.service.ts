@@ -151,18 +151,20 @@ const getDashboardAnalytics = async (
   const analyticsType = plan?.features?.analyticsType || 'none';
 
   // 3. Build response based on plan
+  // impressions: available for any non-'none' analytics type
+  // views: available for 'detailed' and 'advanced'
   const locked = {
     impressions: analyticsType === 'none',
-    views: analyticsType !== 'detailed',
+    views: !(analyticsType === 'detailed' || analyticsType === 'advanced'),
   };
 
   const serviceId = service._id as Types.ObjectId;
 
-  // 4. Fetch impression data (available for "basic" and "detailed")
+  // 4. Fetch impression data (available for "basic", "detailed" and "advanced")
   let totalImpressions: number | null = null;
   let impressionChart: IChartDataPoint[] | null = null;
 
-  if (analyticsType === 'basic' || analyticsType === 'detailed') {
+  if (analyticsType === 'basic' || analyticsType === 'detailed' || analyticsType === 'advanced') {
     totalImpressions = await ServiceAnalytics.countDocuments({
       service: serviceId,
       type: 'impression',
@@ -174,11 +176,11 @@ const getDashboardAnalytics = async (
         : await buildYearlyChart(serviceId, 'impression');
   }
 
-  // 5. Fetch view data (available for "detailed" only)
+  // 5. Fetch view data (available for "detailed" and "advanced")
   let totalViews: number | null = null;
   let viewChart: IChartDataPoint[] | null = null;
 
-  if (analyticsType === 'detailed') {
+  if (analyticsType === 'detailed' || analyticsType === 'advanced') {
     totalViews = await ServiceAnalytics.countDocuments({
       service: serviceId,
       type: 'view',

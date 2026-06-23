@@ -242,6 +242,23 @@ const getRevenue = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+/**
+ * GET /super-admin/service-summary
+ * Query params:
+ *   days : number (how many days ahead counts as "expiring soon")
+ */
+const getServiceSummary = catchAsync(async (req: Request, res: Response) => {
+  const days = parseInt(req.query.days as string) || 7;
+  const data = await SuperAdminService.getServiceSummary(days);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Service summary retrieved successfully",
+    data,
+  });
+});
+
 /* ================================================================== */
 /*  EXPORTS                                                             */
 /* ================================================================== */
@@ -256,4 +273,5 @@ export const SuperAdminController = {
   unblockUser,
   deleteUser,
   getRevenue,
+  getServiceSummary,
 };

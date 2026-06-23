@@ -19,17 +19,32 @@ export const sendPushAndSave = async (payload: INotification) => {
 
     // IF USER ALLOWED PUSH NOTIFICATION
     if (receiverNotificationPreferences?.channel.push) {
-      const message = {
-        token: user.fcmToken,
-        notification: {
-          title: payload.title,
-          body: payload.description,
-        },
-        data: payload.data || {}, // optional key-value pairs
-      };
+      // support multiple device tokens
+      if (Array.isArray(user.fcmToken)) {
+        const multicast = {
+          tokens: user.fcmToken,
+          notification: {
+            title: payload.title,
+            body: payload.description,
+          },
+          data: (payload.data as Record<string, string>) || {},
+        };
 
-      const result = await admin.messaging().send(message); // Send notificaton via FCM
-      console.log('Push sent: ', result);
+        const result = await admin.messaging().sendMulticast(multicast);
+        console.log('Push multicast result: ', result);
+      } else {
+        const message = {
+          token: user.fcmToken,
+          notification: {
+            title: payload.title,
+            body: payload.description,
+          },
+          data: (payload.data as Record<string, string>) || {}, // optional key-value pairs
+        };
+
+        const result = await admin.messaging().send(message); // Send notificaton via FCM
+        console.log('Push sent: ', result);
+      }
     }
 
     return notification;

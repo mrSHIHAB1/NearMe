@@ -13,6 +13,7 @@ import { SubscriptionRoutes } from "../modules/subscription/subscription.route"
 import { ServiceAnalyticsRoutes } from "../modules/serviceAnalytics/serviceAnalytics.routes"
 import { PaymentRoutes } from "../modules/payment/payment.route"
 import { SuperAdminRoutes } from "../modules/superAdmin/superAdmin.route"
+import { notificationRouter } from "../modules/notification/notification.route"
 
 
 export const router = Router()
@@ -73,6 +74,10 @@ const moduleRoutes = [
   {
     path: "/super-admin",
     route: SuperAdminRoutes,
+  },
+   {
+    path: "/notification",
+    route: notificationRouter,
   }
 
 ]

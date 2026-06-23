@@ -27,7 +27,7 @@ export interface ISubscriptionInfo {
     badgeType: "none" | "active" | "verified_pro" | "elite";
     priorityScore: number;
     isFeatured: boolean;
-    analyticsType: "none" | "basic" | "detailed";
+    analyticsType: "none" | "basic" | "detailed" | "advanced";
     hasHighlightedProfileBorder: boolean;
 }
 
@@ -50,7 +50,7 @@ export interface IUser {
     reviews?: Types.ObjectId[];
     messages?: Types.ObjectId[];
     createdAt?: Date;
-    fcmToken?: string;
+    fcmToken?: string[];
     coord?: ICoord;
     subscriptionInfo?: ISubscriptionInfo;
 }

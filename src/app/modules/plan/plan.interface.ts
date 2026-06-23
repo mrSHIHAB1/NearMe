@@ -1,6 +1,6 @@
 export type TPlanName = "free" | "basic" | "pro" | "elite";
 export type TBadgeType = "none" | "active" | "verified_pro" | "elite";
-export type TAnalyticsType = "none" | "basic" | "detailed";
+export type TAnalyticsType = "none" | "basic" | "detailed" | "advanced";
 
 export interface TPlanFeatures {
   maxPhotos: number; // use -1 for unlimited

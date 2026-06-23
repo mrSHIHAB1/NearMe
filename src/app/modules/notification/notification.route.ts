@@ -34,4 +34,14 @@ router.post(
   NotificationController.sendSystemNotification
 );
 
+// Mark as seen
+router.patch(
+  '/:id/mark_seen',
+  checkAuth(...Object.keys(Role)),
+  NotificationController.markNotificationAsSeen
+);
+
+// Delete notification
+router.delete('/:id', checkAuth(...Object.keys(Role)), NotificationController.deleteNotification);
+router.post("/test-push", NotificationController.sendTestPush);
 export const notificationRouter = router;

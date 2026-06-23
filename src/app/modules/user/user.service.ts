@@ -280,7 +280,23 @@ const getMe = async (userId: string) => {
         data: user
     }
 };
-
+const updateFcmToken = async (
+  userId: string,
+  fcmToken: string
+) => {
+  return User.findByIdAndUpdate(
+    userId,
+    {
+      $addToSet: {
+        fcmToken: fcmToken,
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+};
 export const UserServices = {
     createUser,
     updateUserLocation,
@@ -289,5 +305,6 @@ export const UserServices = {
     getSingleUser,
     getMe,
     verifyUserService,
-    resendOTPService
+    resendOTPService,
+    updateFcmToken
 }

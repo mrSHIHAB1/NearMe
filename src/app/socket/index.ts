@@ -27,11 +27,11 @@ export const initSocket = (server: any) => {
         });
 
         socket.on('typing', ({ toUserId }) => {
-            if (onlineUsers[toUserId]) {
-                io.to(onlineUsers[toUserId]).emit('typing', {
-                    from: userId
-                });
-            }
+            // Emit typing event to the room for the target userId. Using
+            // rooms ensures multiple client sockets for a user will receive it.
+            io.to(toUserId).emit('typing', {
+                from: userId,
+            });
         });
         
         // Event for updating user location

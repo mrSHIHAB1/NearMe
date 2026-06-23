@@ -4,7 +4,7 @@ import { NextFunction, Request, Response } from "express";
 import { catchAsync } from "../../utils/catchAsync";
 import httpStatus from 'http-status-codes';
 import { sendResponse } from "../../utils/sendResponse";
-import { AuthServices } from "./auth.service";
+import { appleLogin, AuthServices } from "./auth.service";
 import AppError from "../../errorHelpers/AppError";
 import { setAuthCookie } from "../../utils/setCookie";
 import { JwtPayload } from "jsonwebtoken";
@@ -285,7 +285,39 @@ const googleAuthSystemProvider = catchAsync(
         })
     }
 );
+const appleLoginController = catchAsync(async (req: Request, res: Response) => {
+  const { identityToken } = req.body;
 
+  if (!identityToken) {
+    throw new AppError(httpStatus.BAD_REQUEST, "identityToken required");
+  }
+
+    const roleParam = typeof req.body.role === 'string' ? req.body.role : undefined;
+
+    const result = await appleLogin(identityToken, (roleParam as Role) || undefined);
+
+    // service returns { accessToken, refreshToken, user }
+    if (result && result.accessToken && result.refreshToken) {
+        setAuthCookie(res, {
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+        });
+
+        return sendResponse(res, {
+            success: true,
+            statusCode: httpStatus.OK,
+            message: 'Authentication success',
+            data: result,
+        });
+    }
+
+    return sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: 'Authentication result',
+        data: result,
+    });
+});
 export const AuthControllers = {
     credentialsLogin,
     getNewAccessToken,
@@ -300,5 +332,6 @@ export const AuthControllers = {
     googleRegisterProvider,
     googleAuthSystem,
     googleAuthSystemUser,
-    googleAuthSystemProvider
+    googleAuthSystemProvider,
+    appleLoginController
 }

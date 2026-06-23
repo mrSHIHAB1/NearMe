@@ -21,8 +21,10 @@ router.get("/all-users", checkAuth(Role.PROVIDER, Role.SUPER_ADMIN) , UserContro
 
 router.get("/me", checkAuth(...Object.values(Role)) , UserControllers.getMe);
 
-router.get("/:id", checkAuth(Role.PROVIDER, Role.SUPER_ADMIN), UserControllers.getSingleUser)
 
+
+router.patch("/fcm-token",checkAuth(...Object.values(Role)),UserControllers.updateFcmToken);
+router.get("/:id", checkAuth(Role.PROVIDER, Role.SUPER_ADMIN), UserControllers.getSingleUser)
 router.patch("/:id", checkAuth(...Object.values(Role)), multerUpload.single("picture"),  validateRequest(updateUserZodSchema), UserControllers.updateUser)
 
 export const UserRoutes = router;

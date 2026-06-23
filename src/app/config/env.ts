@@ -65,7 +65,12 @@ interface EnvConfig {
     UNIVERSE_DOMAIN: string;
     STRIPE_SECRET_KEY: string;
     STRIPE_WEBHOOK_SECRET: string;
-
+  APPLE_CLIENT_ID: string;
+  APPLE_TEAM_ID: string;
+  APPLE_KEY_ID: string;
+  APPLE_PRIVATE_KEY_PATH: string;
+  APPLE_CALLBACK_URL: string;
+  APPLE_SHARED_SECRET: string;
 
 }
 
@@ -134,7 +139,13 @@ const loadEnvVariables = (): EnvConfig => {
         'UNIVERSE_DOMAIN',
         
         'STRIPE_SECRET_KEY',
-        'STRIPE_WEBHOOK_SECRET'
+        'STRIPE_WEBHOOK_SECRET',
+        'APPLE_CLIENT_ID',
+        'APPLE_TEAM_ID',
+        'APPLE_KEY_ID',
+        'APPLE_PRIVATE_KEY_PATH',
+        'APPLE_CALLBACK_URL',
+        'APPLE_SHARED_SECRET'
     ];
 
     requiredEnvVariables.forEach(key => {
@@ -212,7 +223,13 @@ const loadEnvVariables = (): EnvConfig => {
         CLIENT_X509_CERT_URL: process.env.CLIENT_X509_CERT_URL as string,
         UNIVERSE_DOMAIN: process.env.UNIVERSE_DOMAIN as string,
         STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY as string,
-        STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET as string
+        STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET as string,
+        APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID as string,
+        APPLE_TEAM_ID: process.env.APPLE_TEAM_ID as string,
+        APPLE_KEY_ID: process.env.APPLE_KEY_ID as string,
+        APPLE_PRIVATE_KEY_PATH: process.env.APPLE_PRIVATE_KEY_PATH as string,
+        APPLE_CALLBACK_URL: process.env.APPLE_CALLBACK_URL as string,
+        APPLE_SHARED_SECRET: process.env.APPLE_SHARED_SECRET as string
 
     }
 }

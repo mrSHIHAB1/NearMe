@@ -7,4 +7,4 @@ export const BADGE_TYPES = [
   "elite",
 ] as const;
 
-export const ANALYTICS_TYPES = ["none", "basic", "detailed"] as const;
+export const ANALYTICS_TYPES = ["none", "basic", "detailed", "advanced"] as const;

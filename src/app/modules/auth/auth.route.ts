@@ -40,4 +40,6 @@ router.post('/google/auth/user', AuthControllers.googleAuthSystemUser);
 router.post('/google/auth/provider', AuthControllers.googleAuthSystemProvider);
 router.post('/google/auth/:role', AuthControllers.googleAuthSystem);
 
+
+router.post("/login/apple", AuthControllers.appleLoginController);
 export const AuthRoutes = router;

@@ -70,9 +70,54 @@ const sendSystemNotification = catchAsync(async (req, res) => {
   });
 });
 
+  // Mark single notification as seen
+  const markNotificationAsSeen = catchAsync(async (req, res) => {
+    const { userId } = req.user as JwtPayload;
+    const notificationId = req.params.id as string;
+
+    const result = await NotificationService.markNotificationAsSeen(
+      userId,
+      notificationId
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Notification marked as seen',
+      data: result,
+    });
+  });
+
+  // Delete single notification
+  const deleteNotification = catchAsync(async (req, res) => {
+    const { userId } = req.user as JwtPayload;
+    const notificationId = req.params.id as string;
+
+    await NotificationService.deleteNotificationService(userId, notificationId);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: 'Notification deleted successfully',
+      data: null,
+    });
+  });
+const sendTestPush = catchAsync(async (_req, res) => {
+  const result = await NotificationService.sendTestPush();
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Test push notification sent",
+    data: result,
+  });
+});
 export const NotificationController = {
   getUserNotificationPreferences,
   updateNotificationPreferences,
   getUserNotifications,
   sendSystemNotification,
+  sendTestPush,
+  markNotificationAsSeen,
+  deleteNotification,
 };

@@ -276,11 +276,19 @@ const getServiceProviders = async (
       ? { _id: s.service_category._id?.toString(), name: s.service_category.name }
       : null,
     service_address: s.service_address || "",
+    location: s.location ? {
+      address: s.location.address || s.service_address || null,
+      coordinates: s.location.coordinates || null,
+    } : null,
     subscriptionStatus: s.subscriptionStatus || "inactive",
     activePlan: s.activePlan
       ? { _id: s.activePlan._id?.toString(), name: s.activePlan.name, title: s.activePlan.title }
       : null,
     subscriptionExpiresAt: s.subscriptionExpiresAt || null,
+    // subscription duration in days (approx) and remaining days until expiry
+    subscriptionDurationDays: s.subscriptionExpiresAt && s.createdAt ? Math.max(0, Math.ceil((new Date(s.subscriptionExpiresAt).getTime() - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : null,
+    subscriptionRemainingDays: s.subscriptionExpiresAt ? Math.max(-1, Math.ceil((new Date(s.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null,
+    trialExpired: s.activePlan && s.activePlan.name === 'free' && s.subscriptionExpiresAt ? (new Date(s.subscriptionExpiresAt).getTime() < Date.now()) : false,
     impressions: impressionMap.get(s._id.toString()) || 0,
     views: viewMap.get(s._id.toString()) || 0,
     averageRating: s.averageRating || 0,
@@ -596,6 +604,63 @@ const getRevenueData = async (
   };
 };
 
+/* (exports moved below service-summary) */
+
+/* ================================================================== */
+/*  7. SERVICES SUMMARY                                                 */
+/* ================================================================== */
+
+/**
+ * Returns simple summary counts for services:
+ *  - totalServices
+ *  - paidServices (active + plan != free)
+ *  - freeTrialServices (active + plan = free)
+ *  - expiredServices (subscriptionStatus = expired or subscriptionExpiresAt < now)
+ *  - expiringSoonCount (expires within next N days)
+ *  - totalRevenue (sum of PAID payments)
+ */
+const getServiceSummary = async (daysUntilExpiry = 7) => {
+  const now = new Date();
+  const soon = new Date();
+  soon.setDate(now.getDate() + daysUntilExpiry);
+
+  const totalServices = await Service.countDocuments();
+
+  // fetch short service list to evaluate plan names
+  const services = await Service.find()
+    .populate("activePlan", "name")
+    .lean();
+
+  const paidServices = services.filter((s: any) => s.subscriptionStatus === "active" && s.activePlan && s.activePlan.name && s.activePlan.name !== "free").length;
+  const freeTrialServices = services.filter((s: any) => s.subscriptionStatus === "active" && (!s.activePlan || s.activePlan.name === "free")).length;
+
+  const expiredServices = await Service.countDocuments({
+    $or: [
+      { subscriptionStatus: "expired" },
+      { subscriptionExpiresAt: { $lt: now } },
+    ],
+  });
+
+  const expiringSoonCount = await Service.countDocuments({
+    subscriptionExpiresAt: { $gte: now, $lte: soon },
+  });
+
+  const revenueAgg = await PaymentModel.aggregate([
+    { $match: { payment_status: "PAID" } },
+    { $group: { _id: null, total: { $sum: "$amount" } } },
+  ]);
+  const totalRevenue = revenueAgg[0]?.total || 0;
+
+  return {
+    totalServices,
+    paidServices,
+    freeTrialServices,
+    expiredServices,
+    expiringSoonCount,
+    totalRevenue,
+  };
+};
+
 /* ================================================================== */
 /*  EXPORTS                                                             */
 /* ================================================================== */
@@ -605,6 +670,7 @@ export const SuperAdminService = {
   suspendServiceProvider,
   unsuspendServiceProvider,
   withdrawServiceProvider,
+  getServiceSummary,
   getUsers,
   blockUser,
   unblockUser,

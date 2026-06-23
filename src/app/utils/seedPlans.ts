@@ -70,7 +70,7 @@ export const seedPlans = async () => {
         maxPhotos: -1,
         maxOfferServices: -1,
         badgeType: "elite",
-        analyticsType: "detailed",
+        analyticsType: "advanced",
         priorityScore: 3,
         canReplyToReviews: true,
         isHomepageFeaturedEligible: true,
