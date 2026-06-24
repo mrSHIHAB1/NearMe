@@ -74,6 +74,7 @@ const redis_config_1 = require("../../config/redis.config");
 const jose_1 = require("jose");
 const axios_1 = __importDefault(require("axios"));
 const appleVerify_1 = require("../../utils/appleVerify");
+const google_auth_library_1 = require("google-auth-library");
 const credentialsLogin = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password } = payload;
     const isUserExist = yield user_model_1.User.findOne({ email });
@@ -434,6 +435,67 @@ const appleLogin = (identityToken_1, ...args_1) => __awaiter(void 0, [identityTo
     };
 });
 exports.appleLogin = appleLogin;
+///
+const googleClient = new google_auth_library_1.OAuth2Client();
+const googleappAuthSystem = (payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const { id_token, role } = payload || {};
+    if (!id_token) {
+        throw new AppError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Google idToken is required');
+    }
+    const ticket = yield googleClient.verifyIdToken({
+        idToken: id_token,
+        audience: process.env.GOOGLE_WEB_CLIENT_ID || env_1.envVars.GOOGLE_CLIENT_ID,
+    });
+    const googlePayload = ticket.getPayload();
+    if (!googlePayload) {
+        throw new AppError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid Google token');
+    }
+    const { sub, email, email_verified, name, } = googlePayload;
+    if (!email || !email_verified) {
+        throw new AppError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Google email is not verified');
+    }
+    // determine role: accept 'provider'|'user' (case-insensitive), default to USER
+    let assignRole = user_interface_1.Role.USER;
+    if (typeof role === 'string') {
+        const r = role.trim().toLowerCase();
+        if (r === 'provider' || r === 'vendor')
+            assignRole = user_interface_1.Role.PROVIDER;
+        else
+            assignRole = user_interface_1.Role.USER;
+    }
+    // Find existing user by email
+    let user = yield user_model_1.User.findOne({ email });
+    const googleAuth = { provider: 'google', providerId: String(sub) };
+    if (!user) {
+        user = yield user_model_1.User.create({
+            email,
+            name,
+            auths: [googleAuth],
+            role: assignRole,
+            isVerified: true,
+        });
+    }
+    else {
+        // attach google provider if missing or providerId mismatch
+        const hasAuth = (_a = user.auths) === null || _a === void 0 ? void 0 : _a.some((a) => a.provider === 'google' && a.providerId === sub);
+        if (!hasAuth) {
+            user.auths = user.auths || [];
+            user.auths.push(googleAuth);
+            // ensure role aligns if user is missing role
+            if (!user.role)
+                user.role = assignRole;
+            yield user.save();
+        }
+    }
+    // Generate tokens
+    const tokens = yield (0, userToken_1.createUserTokens)(user);
+    return {
+        user,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+    };
+});
 exports.AuthServices = {
     credentialsLogin,
     getNewAccessToken,
@@ -443,4 +505,5 @@ exports.AuthServices = {
     verifyForgetPasswordOTP,
     googleAuthSystem,
     appleLogin: exports.appleLogin,
+    googleappAuthSystem
 };

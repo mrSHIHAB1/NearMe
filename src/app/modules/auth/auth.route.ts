@@ -42,4 +42,6 @@ router.post('/google/auth/:role', AuthControllers.googleAuthSystem);
 
 
 router.post("/login/apple", AuthControllers.appleLoginController);
+
+router.post('/google/authentication', AuthControllers.googleappAuthSystem);
 export const AuthRoutes = router;

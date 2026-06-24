@@ -212,6 +212,19 @@ const googleAuthSystem = (0, catchAsync_1.catchAsync)((req, res, next) => __awai
         data: result,
     });
 }));
+const googleappAuthSystem = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    const safeBody = req.body && typeof req.body === 'object' ? req.body : {};
+    if (!safeBody.id_token || typeof safeBody.id_token !== 'string') {
+        throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, 'id_token is required in request body');
+    }
+    const result = yield auth_service_1.AuthServices.googleappAuthSystem(safeBody);
+    (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: 200,
+        message: 'Authentication success',
+        data: result,
+    });
+}));
 const googleAuthSystemUser = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const safeBody = req.body && typeof req.body === "object" ? req.body : {};
     const payload = Object.assign(Object.assign({}, safeBody), { role: user_interface_1.Role.USER });
@@ -276,5 +289,6 @@ exports.AuthControllers = {
     googleAuthSystem,
     googleAuthSystemUser,
     googleAuthSystemProvider,
-    appleLoginController
+    appleLoginController,
+    googleappAuthSystem
 };
