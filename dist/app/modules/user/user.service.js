@@ -233,6 +233,16 @@ const getMe = (userId) => __awaiter(void 0, void 0, void 0, function* () {
         data: user
     };
 });
+const updateFcmToken = (userId, fcmToken) => __awaiter(void 0, void 0, void 0, function* () {
+    return user_model_1.User.findByIdAndUpdate(userId, {
+        $addToSet: {
+            fcmToken: fcmToken,
+        },
+    }, {
+        new: true,
+        runValidators: true,
+    });
+});
 exports.UserServices = {
     createUser,
     updateUserLocation,
@@ -241,5 +251,6 @@ exports.UserServices = {
     getSingleUser,
     getMe,
     verifyUserService,
-    resendOTPService
+    resendOTPService,
+    updateFcmToken
 };

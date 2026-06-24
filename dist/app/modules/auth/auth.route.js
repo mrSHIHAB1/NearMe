@@ -37,4 +37,5 @@ router.get("/google/callback", passport_1.default.authenticate("google", { failu
 router.post('/google/auth/user', auth_controller_1.AuthControllers.googleAuthSystemUser);
 router.post('/google/auth/provider', auth_controller_1.AuthControllers.googleAuthSystemProvider);
 router.post('/google/auth/:role', auth_controller_1.AuthControllers.googleAuthSystem);
+router.post("/login/apple", auth_controller_1.AuthControllers.appleLoginController);
 exports.AuthRoutes = router;

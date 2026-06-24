@@ -30,7 +30,7 @@ export const sendPushAndSave = async (payload: INotification) => {
           data: (payload.data as Record<string, string>) || {},
         };
 
-        const result = await admin.messaging().sendMulticast(multicast);
+        const result = await (admin.messaging() as any).sendMulticast(multicast);
         console.log('Push multicast result: ', result);
       } else {
         const message = {

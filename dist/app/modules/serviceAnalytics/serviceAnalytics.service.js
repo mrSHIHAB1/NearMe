@@ -129,15 +129,17 @@ viewPeriod = 'year') {
     const plan = yield plan_model_1.Plan.findOne({ name: planName }).select('features.analyticsType').lean();
     const analyticsType = ((_b = plan === null || plan === void 0 ? void 0 : plan.features) === null || _b === void 0 ? void 0 : _b.analyticsType) || 'none';
     // 3. Build response based on plan
+    // impressions: available for any non-'none' analytics type
+    // views: available for 'detailed' and 'advanced'
     const locked = {
         impressions: analyticsType === 'none',
-        views: analyticsType !== 'detailed',
+        views: !(analyticsType === 'detailed' || analyticsType === 'advanced'),
     };
     const serviceId = service._id;
-    // 4. Fetch impression data (available for "basic" and "detailed")
+    // 4. Fetch impression data (available for "basic", "detailed" and "advanced")
     let totalImpressions = null;
     let impressionChart = null;
-    if (analyticsType === 'basic' || analyticsType === 'detailed') {
+    if (analyticsType === 'basic' || analyticsType === 'detailed' || analyticsType === 'advanced') {
         totalImpressions = yield serviceAnalytics_model_1.ServiceAnalytics.countDocuments({
             service: serviceId,
             type: 'impression',
@@ -147,10 +149,10 @@ viewPeriod = 'year') {
                 ? yield buildWeeklyChart(serviceId, 'impression')
                 : yield buildYearlyChart(serviceId, 'impression');
     }
-    // 5. Fetch view data (available for "detailed" only)
+    // 5. Fetch view data (available for "detailed" and "advanced")
     let totalViews = null;
     let viewChart = null;
-    if (analyticsType === 'detailed') {
+    if (analyticsType === 'detailed' || analyticsType === 'advanced') {
         totalViews = yield serviceAnalytics_model_1.ServiceAnalytics.countDocuments({
             service: serviceId,
             type: 'view',

@@ -60,12 +60,15 @@ const sendDirectMessageService = (user, receiverId, payload) => __awaiter(void 0
         status: message_interface_1.MessageStatus.SENT,
         replyTo: payload.replyTo,
     });
-    socket_1.io.to(socket_1.onlineUsers[receiverId]).emit('direct_message', message);
-    // Populate sender and replyTo details
+    // Populate sender and replyTo details before emitting so clients receive
+    // the populated fields (name, picture, reply info)
     yield message.populate([
         { path: 'sender', select: 'name picture' },
         { path: 'replyTo', select: 'message sender' },
     ]);
+    // Emit to rooms named by userId (sockets join a room with their userId)
+    socket_1.io.to(receiverId).emit('direct_message', message);
+    socket_1.io.to(senderId).emit('direct_message', message);
     const notificationPayload = {
         user: new mongoose_1.Types.ObjectId(receiverId),
         type: notification_interface_1.NotificationType.CHAT,
@@ -141,9 +144,10 @@ const markMessagesAsSeenService = (user, otherUserId) => __awaiter(void 0, void 
         receiver: userId,
         status: { $in: [message_interface_1.MessageStatus.SENT, message_interface_1.MessageStatus.DELIVERED] },
     }, { status: message_interface_1.MessageStatus.SEEN });
-    // Notify sender via socket that messages have been seen
+    // Notify sender via socket that messages have been seen. Emit to the
+    // user's room so all connected devices receive the update.
     if (socket_1.onlineUsers[otherUserId]) {
-        socket_1.io.to(socket_1.onlineUsers[otherUserId]).emit('messages_seen', {
+        socket_1.io.to(otherUserId).emit('messages_seen', {
             userId: userId,
             count: result.modifiedCount,
         });

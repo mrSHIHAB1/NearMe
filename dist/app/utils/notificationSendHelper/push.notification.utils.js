@@ -27,16 +27,31 @@ const sendPushAndSave = (payload) => __awaiter(void 0, void 0, void 0, function*
         const receiverNotificationPreferences = yield notification_model_1.NotificationPreference.findOne({ user: payload.user });
         // IF USER ALLOWED PUSH NOTIFICATION
         if (receiverNotificationPreferences === null || receiverNotificationPreferences === void 0 ? void 0 : receiverNotificationPreferences.channel.push) {
-            const message = {
-                token: user.fcmToken,
-                notification: {
-                    title: payload.title,
-                    body: payload.description,
-                },
-                data: payload.data || {}, // optional key-value pairs
-            };
-            const result = yield firebase_config_1.default.messaging().send(message); // Send notificaton via FCM
-            console.log('Push sent: ', result);
+            // support multiple device tokens
+            if (Array.isArray(user.fcmToken)) {
+                const multicast = {
+                    tokens: user.fcmToken,
+                    notification: {
+                        title: payload.title,
+                        body: payload.description,
+                    },
+                    data: payload.data || {},
+                };
+                const result = yield firebase_config_1.default.messaging().sendMulticast(multicast);
+                console.log('Push multicast result: ', result);
+            }
+            else {
+                const message = {
+                    token: user.fcmToken,
+                    notification: {
+                        title: payload.title,
+                        body: payload.description,
+                    },
+                    data: payload.data || {}, // optional key-value pairs
+                };
+                const result = yield firebase_config_1.default.messaging().send(message); // Send notificaton via FCM
+                console.log('Push sent: ', result);
+            }
         }
         return notification;
     }

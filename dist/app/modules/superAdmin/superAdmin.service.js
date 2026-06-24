@@ -238,11 +238,19 @@ const getServiceProviders = (...args_1) => __awaiter(void 0, [...args_1], void 0
                 ? { _id: (_g = s.service_category._id) === null || _g === void 0 ? void 0 : _g.toString(), name: s.service_category.name }
                 : null,
             service_address: s.service_address || "",
+            location: s.location ? {
+                address: s.location.address || s.service_address || null,
+                coordinates: s.location.coordinates || null,
+            } : null,
             subscriptionStatus: s.subscriptionStatus || "inactive",
             activePlan: s.activePlan
                 ? { _id: (_h = s.activePlan._id) === null || _h === void 0 ? void 0 : _h.toString(), name: s.activePlan.name, title: s.activePlan.title }
                 : null,
             subscriptionExpiresAt: s.subscriptionExpiresAt || null,
+            // subscription duration in days (approx) and remaining days until expiry
+            subscriptionDurationDays: s.subscriptionExpiresAt && s.createdAt ? Math.max(0, Math.ceil((new Date(s.subscriptionExpiresAt).getTime() - new Date(s.createdAt).getTime()) / (1000 * 60 * 60 * 24))) : null,
+            subscriptionRemainingDays: s.subscriptionExpiresAt ? Math.max(-1, Math.ceil((new Date(s.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null,
+            trialExpired: s.activePlan && s.activePlan.name === 'free' && s.subscriptionExpiresAt ? (new Date(s.subscriptionExpiresAt).getTime() < Date.now()) : false,
             impressions: impressionMap.get(s._id.toString()) || 0,
             views: viewMap.get(s._id.toString()) || 0,
             averageRating: s.averageRating || 0,
@@ -517,6 +525,54 @@ const getRevenueData = (...args_1) => __awaiter(void 0, [...args_1], void 0, fun
         },
     };
 });
+/* (exports moved below service-summary) */
+/* ================================================================== */
+/*  7. SERVICES SUMMARY                                                 */
+/* ================================================================== */
+/**
+ * Returns simple summary counts for services:
+ *  - totalServices
+ *  - paidServices (active + plan != free)
+ *  - freeTrialServices (active + plan = free)
+ *  - expiredServices (subscriptionStatus = expired or subscriptionExpiresAt < now)
+ *  - expiringSoonCount (expires within next N days)
+ *  - totalRevenue (sum of PAID payments)
+ */
+const getServiceSummary = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (daysUntilExpiry = 7) {
+    var _a;
+    const now = new Date();
+    const soon = new Date();
+    soon.setDate(now.getDate() + daysUntilExpiry);
+    const totalServices = yield service_model_1.Service.countDocuments();
+    // fetch short service list to evaluate plan names
+    const services = yield service_model_1.Service.find()
+        .populate("activePlan", "name")
+        .lean();
+    const paidServices = services.filter((s) => s.subscriptionStatus === "active" && s.activePlan && s.activePlan.name && s.activePlan.name !== "free").length;
+    const freeTrialServices = services.filter((s) => s.subscriptionStatus === "active" && (!s.activePlan || s.activePlan.name === "free")).length;
+    const expiredServices = yield service_model_1.Service.countDocuments({
+        $or: [
+            { subscriptionStatus: "expired" },
+            { subscriptionExpiresAt: { $lt: now } },
+        ],
+    });
+    const expiringSoonCount = yield service_model_1.Service.countDocuments({
+        subscriptionExpiresAt: { $gte: now, $lte: soon },
+    });
+    const revenueAgg = yield payment_model_1.default.aggregate([
+        { $match: { payment_status: "PAID" } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+    const totalRevenue = ((_a = revenueAgg[0]) === null || _a === void 0 ? void 0 : _a.total) || 0;
+    return {
+        totalServices,
+        paidServices,
+        freeTrialServices,
+        expiredServices,
+        expiringSoonCount,
+        totalRevenue,
+    };
+});
 /* ================================================================== */
 /*  EXPORTS                                                             */
 /* ================================================================== */
@@ -526,6 +582,7 @@ exports.SuperAdminService = {
     suspendServiceProvider,
     unsuspendServiceProvider,
     withdrawServiceProvider,
+    getServiceSummary,
     getUsers,
     blockUser,
     unblockUser,

@@ -120,11 +120,23 @@ const getSingleUser = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter
         data: result.data
     });
 }));
+const updateFcmToken = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { fcmToken } = req.body;
+    const decodedToken = req.user;
+    const result = yield user_service_1.UserServices.updateFcmToken(decodedToken.userId, fcmToken);
+    (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: 200,
+        message: "FCM token updated successfully",
+        data: result,
+    });
+}));
 exports.UserControllers = {
     createUser,
     updateUserLocation,
     getAllUsers,
     updateUser,
+    updateFcmToken,
     getSingleUser,
     getMe,
     verifyUser,

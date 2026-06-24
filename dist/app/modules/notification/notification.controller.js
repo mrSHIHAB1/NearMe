@@ -65,9 +65,45 @@ const sendSystemNotification = (0, catchAsync_1.catchAsync)((req, res) => __awai
         data: result,
     });
 }));
+// Mark single notification as seen
+const markNotificationAsSeen = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { userId } = req.user;
+    const notificationId = req.params.id;
+    const result = yield notification_service_1.NotificationService.markNotificationAsSeen(userId, notificationId);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: http_status_codes_1.default.OK,
+        success: true,
+        message: 'Notification marked as seen',
+        data: result,
+    });
+}));
+// Delete single notification
+const deleteNotification = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { userId } = req.user;
+    const notificationId = req.params.id;
+    yield notification_service_1.NotificationService.deleteNotificationService(userId, notificationId);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: http_status_codes_1.default.OK,
+        success: true,
+        message: 'Notification deleted successfully',
+        data: null,
+    });
+}));
+const sendTestPush = (0, catchAsync_1.catchAsync)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield notification_service_1.NotificationService.sendTestPush();
+    (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: http_status_codes_1.default.OK,
+        message: "Test push notification sent",
+        data: result,
+    });
+}));
 exports.NotificationController = {
     getUserNotificationPreferences,
     updateNotificationPreferences,
     getUserNotifications,
     sendSystemNotification,
+    sendTestPush,
+    markNotificationAsSeen,
+    deleteNotification,
 };

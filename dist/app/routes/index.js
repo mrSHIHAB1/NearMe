@@ -16,6 +16,7 @@ const subscription_route_1 = require("../modules/subscription/subscription.route
 const serviceAnalytics_routes_1 = require("../modules/serviceAnalytics/serviceAnalytics.routes");
 const payment_route_1 = require("../modules/payment/payment.route");
 const superAdmin_route_1 = require("../modules/superAdmin/superAdmin.route");
+const notification_route_1 = require("../modules/notification/notification.route");
 exports.router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -73,6 +74,10 @@ const moduleRoutes = [
     {
         path: "/super-admin",
         route: superAdmin_route_1.SuperAdminRoutes,
+    },
+    {
+        path: "/notification",
+        route: notification_route_1.notificationRouter,
     }
 ];
 moduleRoutes.forEach((route) => {

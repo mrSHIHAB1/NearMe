@@ -8,6 +8,7 @@ const superAdmin_controller_1 = require("./superAdmin.controller");
 const router = (0, express_1.Router)();
 router.get("/dashboard", (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), superAdmin_controller_1.SuperAdminController.getDashboard);
 router.get("/service-providers", (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), superAdmin_controller_1.SuperAdminController.getServiceProviders);
+router.get("/service-summary", (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), superAdmin_controller_1.SuperAdminController.getServiceSummary);
 router.patch("/service-providers/:serviceId/suspend", (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), superAdmin_controller_1.SuperAdminController.suspendServiceProvider);
 router.patch("/service-providers/:serviceId/unsuspend", (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), superAdmin_controller_1.SuperAdminController.unsuspendServiceProvider);
 router.delete("/service-providers/:serviceId", (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), superAdmin_controller_1.SuperAdminController.withdrawServiceProvider);

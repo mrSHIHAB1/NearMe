@@ -36,7 +36,7 @@ const userSchema = new mongoose_1.Schema({
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "Service",
     },
-    fcmToken: { type: String },
+    fcmToken: [{ type: String }],
     coord: {
         type: { lat: { type: Number }, lon: { type: Number } },
         _id: false,
@@ -62,7 +62,7 @@ const userSchema = new mongoose_1.Schema({
         },
         analyticsType: {
             type: String,
-            enum: ["none", "basic", "detailed"],
+            enum: ["none", "basic", "detailed", "advanced"],
             default: "none",
         },
         hasHighlightedProfileBorder: {

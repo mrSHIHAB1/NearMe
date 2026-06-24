@@ -81,7 +81,7 @@ const seedPlans = () => __awaiter(void 0, void 0, void 0, function* () {
                 maxPhotos: -1,
                 maxOfferServices: -1,
                 badgeType: "elite",
-                analyticsType: "detailed",
+                analyticsType: "advanced",
                 priorityScore: 3,
                 canReplyToReviews: true,
                 isHomepageFeaturedEligible: true,

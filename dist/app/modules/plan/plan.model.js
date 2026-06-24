@@ -25,7 +25,7 @@ const planSchema = new mongoose_1.Schema({
         },
         analyticsType: {
             type: String,
-            enum: ["none", "basic", "detailed"],
+            enum: ["none", "basic", "detailed", "advanced"],
             default: "none",
         },
         priorityScore: { type: Number, required: true, default: 0 },

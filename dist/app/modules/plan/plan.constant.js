@@ -8,4 +8,4 @@ exports.BADGE_TYPES = [
     "verified_pro",
     "elite",
 ];
-exports.ANALYTICS_TYPES = ["none", "basic", "detailed"];
+exports.ANALYTICS_TYPES = ["none", "basic", "detailed", "advanced"];

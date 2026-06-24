@@ -234,6 +234,33 @@ const googleAuthSystemProvider = (0, catchAsync_1.catchAsync)((req, res, next) =
         data: result,
     });
 }));
+const appleLoginController = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { identityToken } = req.body;
+    if (!identityToken) {
+        throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "identityToken required");
+    }
+    const roleParam = typeof req.body.role === 'string' ? req.body.role : undefined;
+    const result = yield (0, auth_service_1.appleLogin)(identityToken, roleParam || undefined);
+    // service returns { accessToken, refreshToken, user }
+    if (result && result.accessToken && result.refreshToken) {
+        (0, setCookie_1.setAuthCookie)(res, {
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+        });
+        return (0, sendResponse_1.sendResponse)(res, {
+            success: true,
+            statusCode: http_status_codes_1.default.OK,
+            message: 'Authentication success',
+            data: result,
+        });
+    }
+    return (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: http_status_codes_1.default.OK,
+        message: 'Authentication result',
+        data: result,
+    });
+}));
 exports.AuthControllers = {
     credentialsLogin,
     getNewAccessToken,
@@ -248,5 +275,6 @@ exports.AuthControllers = {
     googleRegisterProvider,
     googleAuthSystem,
     googleAuthSystemUser,
-    googleAuthSystemProvider
+    googleAuthSystemProvider,
+    appleLoginController
 };

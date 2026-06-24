@@ -32,11 +32,11 @@ const initSocket = (server) => {
             console.log("user is joining");
         });
         socket.on('typing', ({ toUserId }) => {
-            if (exports.onlineUsers[toUserId]) {
-                exports.io.to(exports.onlineUsers[toUserId]).emit('typing', {
-                    from: userId
-                });
-            }
+            // Emit typing event to the room for the target userId. Using
+            // rooms ensures multiple client sockets for a user will receive it.
+            exports.io.to(toUserId).emit('typing', {
+                from: userId,
+            });
         });
         // Event for updating user location
         socket.on("location-update", (location) => __awaiter(void 0, void 0, void 0, function* () {

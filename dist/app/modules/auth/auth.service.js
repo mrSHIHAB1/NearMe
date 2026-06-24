@@ -56,7 +56,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AuthServices = void 0;
+exports.AuthServices = exports.appleLogin = void 0;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -73,6 +73,7 @@ const randomOTPGenerator_1 = require("../../utils/randomOTPGenerator");
 const redis_config_1 = require("../../config/redis.config");
 const jose_1 = require("jose");
 const axios_1 = __importDefault(require("axios"));
+const appleVerify_1 = require("../../utils/appleVerify");
 const credentialsLogin = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password } = payload;
     const isUserExist = yield user_model_1.User.findOne({ email });
@@ -369,6 +370,70 @@ const googleAuthSystem = (payload) => __awaiter(void 0, void 0, void 0, function
         refreshToken: userTokens.refreshToken,
     };
 });
+const appleLogin = (identityToken_1, ...args_1) => __awaiter(void 0, [identityToken_1, ...args_1], void 0, function* (identityToken, role = user_interface_1.Role.USER) {
+    var _a, _b;
+    if (!identityToken) {
+        throw new AppError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, "Apple identity token required");
+    }
+    const appleUser = yield (0, appleVerify_1.verifyAppleToken)(identityToken);
+    const appleId = appleUser.sub;
+    const email = (_a = appleUser.email) === null || _a === void 0 ? void 0 : _a.toLowerCase();
+    if (!appleId || !email) {
+        throw new AppError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, "Invalid Apple token");
+    }
+    // Find user by apple provider OR email
+    let user = yield user_model_1.User.findOne({
+        $or: [
+            { email },
+            { auths: { $elemMatch: { provider: "apple", providerId: appleId } } }
+        ]
+    });
+    // Create user if not exists
+    if (!user) {
+        user = yield user_model_1.User.create({
+            email,
+            role,
+            isVerified: true,
+            auths: [
+                {
+                    provider: "apple",
+                    providerId: appleId,
+                },
+            ],
+        });
+    }
+    else {
+        // attach apple provider if missing
+        const hasApple = (_b = user.auths) === null || _b === void 0 ? void 0 : _b.some((a) => a.provider === "apple" && a.providerId === appleId);
+        if (!hasApple) {
+            user.auths.push({
+                provider: "apple",
+                providerId: appleId,
+            });
+            user.isVerified = true;
+            yield user.save();
+        }
+    }
+    // BLOCKED / DELETED checks (same as Google)
+    if (user.isDeleted) {
+        throw new AppError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, "User was deleted!");
+    }
+    if (user.isActive === user_interface_1.IsActive.BLOCKED || user.isActive === user_interface_1.IsActive.INACTIVE) {
+        throw new AppError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `User is ${user.isActive}`);
+    }
+    // TOKENS (SAME AS GOOGLE)
+    const userTokens = yield (0, userToken_1.createUserTokens)({
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+    });
+    return {
+        accessToken: userTokens.accessToken,
+        refreshToken: userTokens.refreshToken,
+        user,
+    };
+});
+exports.appleLogin = appleLogin;
 exports.AuthServices = {
     credentialsLogin,
     getNewAccessToken,
@@ -376,5 +441,6 @@ exports.AuthServices = {
     resetPassword,
     forgetPassword,
     verifyForgetPasswordOTP,
-    googleAuthSystem
+    googleAuthSystem,
+    appleLogin: exports.appleLogin,
 };

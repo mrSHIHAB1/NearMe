@@ -17,4 +17,9 @@ router.get('/preferences', (0, checkAuth_1.checkAuth)(), notification_controller
 router.patch('/preferences', (0, checkAuth_1.checkAuth)(), (0, validateRequest_1.validateRequest)(notification_validation_1.NotificationValidation.updateNotificationPreferencesSchema), notification_controller_1.NotificationController.updateNotificationPreferences);
 router.get('/my_notifications', (0, checkAuth_1.checkAuth)(...Object.keys(user_interface_1.Role)), notification_controller_1.NotificationController.getUserNotifications);
 router.post('/send_system_notification', (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), notification_controller_1.NotificationController.sendSystemNotification);
+// Mark as seen
+router.patch('/:id/mark_seen', (0, checkAuth_1.checkAuth)(...Object.keys(user_interface_1.Role)), notification_controller_1.NotificationController.markNotificationAsSeen);
+// Delete notification
+router.delete('/:id', (0, checkAuth_1.checkAuth)(...Object.keys(user_interface_1.Role)), notification_controller_1.NotificationController.deleteNotification);
+router.post("/test-push", notification_controller_1.NotificationController.sendTestPush);
 exports.notificationRouter = router;
