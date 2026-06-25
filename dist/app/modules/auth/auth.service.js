@@ -208,7 +208,7 @@ const resetPassword = (token, newPassword) => __awaiter(void 0, void 0, void 0, 
 // =============================GOOGLE REGISTER/LOGIN HANDLING FOR APPLE (NO REDIRECT SYSTEM)===============
 const googleJWKS = (0, jose_1.createRemoteJWKSet)(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const buildGoogleAllowedClientIds = () => {
-    const rawClientIds = [`${env_1.envVars.GOOGLE_ANDROID_CLIENT_ID},${env_1.envVars.GOOGLE_IOS_CLIENT_ID}`]
+    const rawClientIds = [`${env_1.envVars.GOOGLE_ANDROID_CLIENT_ID},${env_1.envVars.GOOGLE_IOS_CLIENT_ID},${env_1.envVars.GOOGLE_CLIENT_ID}`]
         .join(',')
         .split(',')
         .map((item) => item.trim())
@@ -439,62 +439,82 @@ exports.appleLogin = appleLogin;
 const googleClient = new google_auth_library_1.OAuth2Client();
 const googleappAuthSystem = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const { id_token, role } = payload || {};
-    if (!id_token) {
-        throw new AppError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Google idToken is required');
-    }
-    const ticket = yield googleClient.verifyIdToken({
-        idToken: id_token,
-        audience: process.env.GOOGLE_WEB_CLIENT_ID || env_1.envVars.GOOGLE_CLIENT_ID,
-    });
-    const googlePayload = ticket.getPayload();
-    if (!googlePayload) {
-        throw new AppError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid Google token');
-    }
-    const { sub, email, email_verified, name, } = googlePayload;
-    if (!email || !email_verified) {
-        throw new AppError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Google email is not verified');
-    }
-    // determine role: accept 'provider'|'user' (case-insensitive), default to USER
-    let assignRole = user_interface_1.Role.USER;
-    if (typeof role === 'string') {
-        const r = role.trim().toLowerCase();
-        if (r === 'provider' || r === 'vendor')
-            assignRole = user_interface_1.Role.PROVIDER;
-        else
-            assignRole = user_interface_1.Role.USER;
-    }
-    // Find existing user by email
-    let user = yield user_model_1.User.findOne({ email });
-    const googleAuth = { provider: 'google', providerId: String(sub) };
-    if (!user) {
-        user = yield user_model_1.User.create({
-            email,
-            name,
-            auths: [googleAuth],
-            role: assignRole,
-            isVerified: true,
-        });
-    }
-    else {
-        // attach google provider if missing or providerId mismatch
-        const hasAuth = (_a = user.auths) === null || _a === void 0 ? void 0 : _a.some((a) => a.provider === 'google' && a.providerId === sub);
-        if (!hasAuth) {
-            user.auths = user.auths || [];
-            user.auths.push(googleAuth);
-            // ensure role aligns if user is missing role
-            if (!user.role)
-                user.role = assignRole;
-            yield user.save();
+    try {
+        console.log("Received Payload:", payload);
+        const { id_token, role } = payload || {};
+        if (!id_token) {
+            throw new AppError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, "Google idToken is required");
         }
+        console.log("Verifying Google Token...");
+        const ticket = yield googleClient.verifyIdToken({
+            idToken: id_token,
+            audience: Array.from(buildGoogleAllowedClientIds()),
+        });
+        const googlePayload = ticket.getPayload();
+        console.log("Google Payload:", googlePayload);
+        if (!googlePayload) {
+            throw new AppError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, "Invalid Google token");
+        }
+        const { sub, email, email_verified, name, } = googlePayload;
+        console.log("User Info:", {
+            sub,
+            email,
+            email_verified,
+            name,
+        });
+        if (!email || !email_verified) {
+            throw new AppError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, "Google email is not verified");
+        }
+        let assignRole = user_interface_1.Role.USER;
+        if (typeof role === "string") {
+            const r = role.trim().toLowerCase();
+            if (r === "provider" || r === "vendor") {
+                assignRole = user_interface_1.Role.PROVIDER;
+            }
+        }
+        console.log("Assigned Role:", assignRole);
+        let user = yield user_model_1.User.findOne({ email });
+        console.log("Existing User:", user === null || user === void 0 ? void 0 : user._id);
+        const googleAuth = {
+            provider: "google",
+            providerId: String(sub),
+        };
+        if (!user) {
+            console.log("Creating New User...");
+            user = yield user_model_1.User.create({
+                email,
+                name,
+                auths: [googleAuth],
+                role: assignRole,
+                isVerified: true,
+            });
+        }
+        else {
+            console.log("User Exists");
+            const hasAuth = (_a = user.auths) === null || _a === void 0 ? void 0 : _a.some((a) => a.provider === "google" &&
+                a.providerId === sub);
+            if (!hasAuth) {
+                console.log("Adding Google Provider");
+                user.auths.push(googleAuth);
+                yield user.save();
+            }
+        }
+        console.log("Generating JWT Tokens...");
+        const tokens = yield (0, userToken_1.createUserTokens)(user);
+        console.log("Login Success");
+        return {
+            user,
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+        };
     }
-    // Generate tokens
-    const tokens = yield (0, userToken_1.createUserTokens)(user);
-    return {
-        user,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-    };
+    catch (error) {
+        console.error("GOOGLE LOGIN ERROR");
+        console.error("Message:", error === null || error === void 0 ? void 0 : error.message);
+        console.error("Stack:", error === null || error === void 0 ? void 0 : error.stack);
+        console.error("Full Error:", error);
+        throw error;
+    }
 });
 exports.AuthServices = {
     credentialsLogin,

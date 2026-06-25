@@ -68,7 +68,10 @@ const sendDirectMessageService = (user, receiverId, payload) => __awaiter(void 0
     ]);
     // Emit to rooms named by userId (sockets join a room with their userId)
     socket_1.io.to(receiverId).emit('direct_message', message);
-    socket_1.io.to(senderId).emit('direct_message', message);
+    // avoid sending twice to the same room when sender === receiver
+    if (senderId !== receiverId) {
+        socket_1.io.to(senderId).emit('direct_message', message);
+    }
     const notificationPayload = {
         user: new mongoose_1.Types.ObjectId(receiverId),
         type: notification_interface_1.NotificationType.CHAT,

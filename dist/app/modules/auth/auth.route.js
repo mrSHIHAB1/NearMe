@@ -34,8 +34,9 @@ router.get("/google/user", auth_controller_1.AuthControllers.googleRegisterUser)
 router.get("/google/provider", auth_controller_1.AuthControllers.googleRegisterProvider);
 router.get("/google/callback", passport_1.default.authenticate("google", { failureRedirect: `${env_1.envVars.FRONTEND_URL}/login?error=There is some issues with your account. Please contact with out support team!` }), auth_controller_1.AuthControllers.googleCallbackController);
 // GOOGLE AUTH FOR APP
-router.post('/google/auth/user', auth_controller_1.AuthControllers.googleAuthSystemUser);
-router.post('/google/auth/provider', auth_controller_1.AuthControllers.googleAuthSystemProvider);
-router.post('/google/auth/:role', auth_controller_1.AuthControllers.googleAuthSystem);
+// router.post('/google/auth/user', AuthControllers.googleAuthSystemUser);
+// router.post('/google/auth/provider', AuthControllers.googleAuthSystemProvider);
+// router.post('/google/auth/:role', AuthControllers.googleAuthSystem);
 router.post("/login/apple", auth_controller_1.AuthControllers.appleLoginController);
+router.post('/google/authentication', auth_controller_1.AuthControllers.googleappAuthSystem);
 exports.AuthRoutes = router;

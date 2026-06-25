@@ -12,6 +12,7 @@ import { Role } from "../user/user.interface";
 import { User } from "../user/user.model";
 import { Review } from "../review/review.model";
 import { buildServiceMeta } from "../../utils/getNearestServicesHelper/buildServiceMeta";
+import { checkIsAvailableNow } from "../../utils/getNearestServicesHelper/checkIsAvailableNow";
 import { buildGeoQuery } from "../../utils/getNearestServicesHelper/getNearestServicesQuery";
 import { getAllDescendantCategoryIds } from "../category/category.service";
 import { ServiceAnalytics } from "../serviceAnalytics/serviceAnalytics.model";
@@ -180,7 +181,17 @@ const getSingleService = async (id: string) => {
   // Fire-and-forget view tracking
   ServiceAnalytics.create({ service: service._id, type: 'view' }).catch(() => {});
 
-  return service;
+  // Add `isOpen` flag based on current time and service hours
+  const isOpen = checkIsAvailableNow(
+    service.openingTime,
+    service.closingTime,
+    service.allTimeAvailability
+  );
+
+  const serviceObj: any = service.toObject ? service.toObject() : service;
+  serviceObj.isOpen = isOpen;
+
+  return serviceObj;
 };
 
 // ─── Get Nearest Services ─────────────────────────────────────────────────────
@@ -197,13 +208,29 @@ const getNearestServices = async (
 
   const userLon = parseFloat(lon);
   const userLat = parseFloat(lat);
-  const radiusInMeters = (radius ?? 10) * 1609.34;
 
-  const services = await Service.find(
-    buildGeoQuery(userLon, userLat, radiusInMeters, categories)
-  )
-    .select(SERVICE_SELECT)
-    .populate("provider", PROVIDER_SELECT);
+  // Normalize numeric query params
+  const minRatingNum = minRating !== undefined && minRating !== null ? Number(minRating) : undefined;
+  const radiusNum = radius !== undefined && radius !== null ? Number(radius) : undefined;
+
+  // If radius and categories are both absent/empty, return all services
+  // (this ensures passing only minRating will not cause a geo-radius restriction)
+  const categoriesEmpty =
+    categories === undefined || (Array.isArray(categories) && categories.length === 0);
+
+  let services;
+  if ((radiusNum === undefined || isNaN(radiusNum)) && categoriesEmpty) {
+    services = await Service.find()
+      .select(SERVICE_SELECT)
+      .populate("provider", PROVIDER_SELECT);
+  } else {
+    const radiusInMeters = (radiusNum ?? 10) * 1609.34;
+    services = await Service.find(
+      buildGeoQuery(userLon, userLat, radiusInMeters, categories)
+    )
+      .select(SERVICE_SELECT)
+      .populate("provider", PROVIDER_SELECT);
+  }
 
   const ratingMap = await aggregateRatings(services.map((s) => s._id));
 
@@ -211,8 +238,8 @@ const getNearestServices = async (
     buildServiceMeta(service, ratingMap, userLon, userLat)
   );
 
-  if (minRating) {
-    result = result.filter((s) => s.averageRating >= minRating);
+  if (minRatingNum !== undefined && !isNaN(minRatingNum)) {
+    result = result.filter((s) => s.averageRating >= minRatingNum);
   }
 
   result.sort((a, b) => b.provider.priorityScore - a.provider.priorityScore);

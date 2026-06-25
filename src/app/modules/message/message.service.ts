@@ -68,7 +68,10 @@ const sendDirectMessageService = async (
 
   // Emit to rooms named by userId (sockets join a room with their userId)
   io.to(receiverId).emit('direct_message', message);
-  io.to(senderId).emit('direct_message', message);
+  // avoid sending twice to the same room when sender === receiver
+  if (senderId !== receiverId) {
+    io.to(senderId).emit('direct_message', message);
+  }
 
   const notificationPayload = {
     user: new Types.ObjectId(receiverId),

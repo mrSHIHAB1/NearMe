@@ -215,7 +215,7 @@ const googleJWKS = createRemoteJWKSet(
 );
 
 const buildGoogleAllowedClientIds = () => {
-  const rawClientIds = [`${envVars.GOOGLE_ANDROID_CLIENT_ID},${envVars.GOOGLE_IOS_CLIENT_ID}`]
+  const rawClientIds = [`${envVars.GOOGLE_ANDROID_CLIENT_ID},${envVars.GOOGLE_IOS_CLIENT_ID},${envVars.GOOGLE_CLIENT_ID}`]
     .join(',')
     .split(',')
     .map((item) => item.trim())
@@ -533,76 +533,128 @@ export const appleLogin = async (identityToken: string, role: Role = Role.USER) 
 ///
 const googleClient = new OAuth2Client();
 
-const googleappAuthSystem = async (payload: { id_token: string; role?: string }) => {
-  const { id_token, role } = payload || {};
+const googleappAuthSystem = async (payload: {
+  id_token: string;
+  role?: string;
+}) => {
+  try {
+    console.log("Received Payload:", payload);
 
-  if (!id_token) {
-    throw new AppError(StatusCodes.BAD_REQUEST, 'Google idToken is required');
-  }
+    const { id_token, role } = payload || {};
 
-  const ticket = await googleClient.verifyIdToken({
-    idToken: id_token,
-    audience: process.env.GOOGLE_WEB_CLIENT_ID || envVars.GOOGLE_CLIENT_ID,
-  });
-
-  const googlePayload = ticket.getPayload();
-
-  if (!googlePayload) {
-    throw new AppError(StatusCodes.UNAUTHORIZED, 'Invalid Google token');
-  }
-
-  const {
-    sub,
-    email,
-    email_verified,
-    name,
-  } = googlePayload as any;
-
-  if (!email || !email_verified) {
-    throw new AppError(StatusCodes.UNAUTHORIZED, 'Google email is not verified');
-  }
-
-  // determine role: accept 'provider'|'user' (case-insensitive), default to USER
-  let assignRole: Role = Role.USER;
-  if (typeof role === 'string') {
-    const r = role.trim().toLowerCase();
-    if (r === 'provider' || r === 'vendor') assignRole = Role.PROVIDER;
-    else assignRole = Role.USER;
-  }
-
-  // Find existing user by email
-  let user = await User.findOne({ email });
-
-  const googleAuth: IAuthProvider = { provider: 'google', providerId: String(sub) };
-
-  if (!user) {
-    user = await User.create({
-      email,
-      name,
-      auths: [googleAuth],
-      role: assignRole,
-      isVerified: true,
-    });
-  } else {
-    // attach google provider if missing or providerId mismatch
-    const hasAuth = user.auths?.some((a) => a.provider === 'google' && a.providerId === sub);
-    if (!hasAuth) {
-      user.auths = user.auths || [];
-      user.auths.push(googleAuth as any);
-      // ensure role aligns if user is missing role
-      if (!user.role) user.role = assignRole;
-      await user.save();
+    if (!id_token) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        "Google idToken is required"
+      );
     }
+
+    console.log("Verifying Google Token...");
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: id_token,
+      audience: Array.from(buildGoogleAllowedClientIds()),
+    });
+
+    const googlePayload = ticket.getPayload();
+
+    console.log("Google Payload:", googlePayload);
+
+    if (!googlePayload) {
+      throw new AppError(
+        StatusCodes.UNAUTHORIZED,
+        "Invalid Google token"
+      );
+    }
+
+    const {
+      sub,
+      email,
+      email_verified,
+      name,
+    } = googlePayload;
+
+    console.log("User Info:", {
+      sub,
+      email,
+      email_verified,
+      name,
+    });
+
+    if (!email || !email_verified) {
+      throw new AppError(
+        StatusCodes.UNAUTHORIZED,
+        "Google email is not verified"
+      );
+    }
+
+    let assignRole: Role = Role.USER;
+
+    if (typeof role === "string") {
+      const r = role.trim().toLowerCase();
+
+      if (r === "provider" || r === "vendor") {
+        assignRole = Role.PROVIDER;
+      }
+    }
+
+    console.log("Assigned Role:", assignRole);
+
+    let user = await User.findOne({ email });
+
+    console.log("Existing User:", user?._id);
+
+    const googleAuth: IAuthProvider = {
+      provider: "google",
+      providerId: String(sub),
+    };
+
+    if (!user) {
+      console.log("Creating New User...");
+
+      user = await User.create({
+        email,
+        name,
+        auths: [googleAuth],
+        role: assignRole,
+        isVerified: true,
+      });
+    } else {
+      console.log("User Exists");
+
+      const hasAuth = user.auths?.some(
+        (a) =>
+          a.provider === "google" &&
+          a.providerId === sub
+      );
+
+      if (!hasAuth) {
+        console.log("Adding Google Provider");
+
+        user.auths.push(googleAuth);
+        await user.save();
+      }
+    }
+
+    console.log("Generating JWT Tokens...");
+
+    const tokens = await createUserTokens(user);
+
+    console.log("Login Success");
+
+    return {
+      user,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  } catch (error: any) {
+    console.error("GOOGLE LOGIN ERROR");
+    console.error("Message:", error?.message);
+    console.error("Stack:", error?.stack);
+    console.error("Full Error:", error);
+
+    throw error;
   }
-
-  // Generate tokens
-  const tokens = await createUserTokens(user as any);
-
-  return {
-    user,
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
-  };
 };
 export const AuthServices = {
   credentialsLogin,

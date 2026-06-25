@@ -37,6 +37,7 @@ const user_interface_1 = require("../user/user.interface");
 const user_model_1 = require("../user/user.model");
 const review_model_1 = require("../review/review.model");
 const buildServiceMeta_1 = require("../../utils/getNearestServicesHelper/buildServiceMeta");
+const checkIsAvailableNow_1 = require("../../utils/getNearestServicesHelper/checkIsAvailableNow");
 const getNearestServicesQuery_1 = require("../../utils/getNearestServicesHelper/getNearestServicesQuery");
 const category_service_1 = require("../category/category.service");
 const serviceAnalytics_model_1 = require("../serviceAnalytics/serviceAnalytics.model");
@@ -157,7 +158,11 @@ const getSingleService = (id) => __awaiter(void 0, void 0, void 0, function* () 
     }
     // Fire-and-forget view tracking
     serviceAnalytics_model_1.ServiceAnalytics.create({ service: service._id, type: 'view' }).catch(() => { });
-    return service;
+    // Add `isOpen` flag based on current time and service hours
+    const isOpen = (0, checkIsAvailableNow_1.checkIsAvailableNow)(service.openingTime, service.closingTime, service.allTimeAvailability);
+    const serviceObj = service.toObject ? service.toObject() : service;
+    serviceObj.isOpen = isOpen;
+    return serviceObj;
 });
 // ─── Get Nearest Services ─────────────────────────────────────────────────────
 const getNearestServices = (lon, lat, minRating, radius, categories) => __awaiter(void 0, void 0, void 0, function* () {
@@ -166,14 +171,28 @@ const getNearestServices = (lon, lat, minRating, radius, categories) => __awaite
     }
     const userLon = parseFloat(lon);
     const userLat = parseFloat(lat);
-    const radiusInMeters = (radius !== null && radius !== void 0 ? radius : 10) * 1609.34;
-    const services = yield service_model_1.Service.find((0, getNearestServicesQuery_1.buildGeoQuery)(userLon, userLat, radiusInMeters, categories))
-        .select(SERVICE_SELECT)
-        .populate("provider", PROVIDER_SELECT);
+    // Normalize numeric query params
+    const minRatingNum = minRating !== undefined && minRating !== null ? Number(minRating) : undefined;
+    const radiusNum = radius !== undefined && radius !== null ? Number(radius) : undefined;
+    // If radius and categories are both absent/empty, return all services
+    // (this ensures passing only minRating will not cause a geo-radius restriction)
+    const categoriesEmpty = categories === undefined || (Array.isArray(categories) && categories.length === 0);
+    let services;
+    if ((radiusNum === undefined || isNaN(radiusNum)) && categoriesEmpty) {
+        services = yield service_model_1.Service.find()
+            .select(SERVICE_SELECT)
+            .populate("provider", PROVIDER_SELECT);
+    }
+    else {
+        const radiusInMeters = (radiusNum !== null && radiusNum !== void 0 ? radiusNum : 10) * 1609.34;
+        services = yield service_model_1.Service.find((0, getNearestServicesQuery_1.buildGeoQuery)(userLon, userLat, radiusInMeters, categories))
+            .select(SERVICE_SELECT)
+            .populate("provider", PROVIDER_SELECT);
+    }
     const ratingMap = yield aggregateRatings(services.map((s) => s._id));
     let result = services.map((service) => (0, buildServiceMeta_1.buildServiceMeta)(service, ratingMap, userLon, userLat));
-    if (minRating) {
-        result = result.filter((s) => s.averageRating >= minRating);
+    if (minRatingNum !== undefined && !isNaN(minRatingNum)) {
+        result = result.filter((s) => s.averageRating >= minRatingNum);
     }
     result.sort((a, b) => b.provider.priorityScore - a.provider.priorityScore);
     if (result.length > 0) {
