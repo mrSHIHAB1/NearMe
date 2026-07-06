@@ -92,16 +92,14 @@ const resendOTP = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateUser = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.params.id as string;
-
-
-  const verifiedToken = req.user;
+  const verifiedToken = req.user as JwtPayload;
+  const userId = verifiedToken.userId as string;
 
   const payload: Partial<IUser> = {
     ... req.body,
     picture: req.file?.path
   }
-  const user = await UserServices.updateUser(userId, payload, verifiedToken as JwtPayload);
+  const user = await UserServices.updateUser(userId, payload, verifiedToken);
 
   sendResponse(res, {
     success: true,

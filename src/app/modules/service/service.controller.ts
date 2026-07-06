@@ -273,6 +273,32 @@ const getMyService = catchAsync(
   }
 );
 
+/**
+ * GET /service/:id/details
+ *
+ * Retrieves comprehensive service details including:
+ * - Service info (name, about, time, location)
+ * - Category details
+ * - Average rating and total reviews
+ * - All service highlights
+ * - All reviews from users with user details populated
+ *
+ * Returns: Complete service object with reviews array and metadata
+ */
+const getServiceDetailsWithReviews = catchAsync(
+  async (req: Request, res: Response) => {
+    const serviceId = req.params.id as string;
+    const service = await ServiceServices.getServiceDetailsWithReviews(serviceId);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Service details with reviews retrieved successfully",
+      data: service,
+    });
+  }
+);
+
 export const ServiceControllers = {
   createService,
   getAllServices,
@@ -283,4 +309,5 @@ export const ServiceControllers = {
   getSingleService,
   deleteService,
   getMyService,
+  getServiceDetailsWithReviews,
 };

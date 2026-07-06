@@ -43,5 +43,12 @@ router.patch(
 
 // Delete notification
 router.delete('/:id', checkAuth(...Object.keys(Role)), NotificationController.deleteNotification);
-router.post("/test-push", NotificationController.sendTestPush);
+
+// Test push notification
+router.post(
+  '/test-push',
+  checkAuth(Role.SUPER_ADMIN),
+  NotificationController.sendTestPush
+);
+
 export const notificationRouter = router;

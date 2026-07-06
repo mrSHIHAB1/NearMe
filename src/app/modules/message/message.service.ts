@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { JwtPayload } from 'jsonwebtoken';
 import Message from './message.model';
 import AppError from '../../errorHelpers/AppError';
@@ -78,8 +79,11 @@ const sendDirectMessageService = async (
     type: NotificationType.CHAT,
     title: 'New Message',
     description: `${sender.name} sent you a message`,
+    chatId: message._id,
     data: {
       senderId: sender?._id.toString(),
+      senderName: sender?.name,
+      receiverId: receiverId,
       message: message.message.text || message.message.image,
       image: sender?.picture,
     },
@@ -87,8 +91,10 @@ const sendDirectMessageService = async (
 
   // Send real-time notification via socket if receiver is online
   if (onlineUsers[receiverId]) {
+    console.log('🟢 [MESSAGE SERVICE] Receiver is ONLINE - sending socket notification');
     await sendPersonalNotification(notificationPayload);
   } else {
+    console.log('🔴 [MESSAGE SERVICE] Receiver is OFFLINE - sending push notification');
     await sendPushAndSave(notificationPayload);
   }
 

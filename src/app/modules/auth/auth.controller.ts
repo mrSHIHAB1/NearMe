@@ -257,7 +257,7 @@ const googleappAuthSystem = catchAsync(
         }
 
         const result = await AuthServices.googleappAuthSystem(safeBody as any);
-
+        console.log('Google Auth Result:', result);
         sendResponse(res, {
             success: true,
             statusCode: 200,
@@ -266,6 +266,7 @@ const googleappAuthSystem = catchAsync(
         });
   }
 );
+
 const googleAuthSystemUser = catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
         const safeBody = req.body && typeof req.body === "object" ? req.body : {};

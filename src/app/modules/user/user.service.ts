@@ -11,6 +11,7 @@ import { userSearchableFields } from "./user.constant";
 import { randomOTPGenerator } from "../../utils/randomOTPGenerator";
 import { sendEmail } from "../../utils/sendEmail";
 import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
+import { NotificationPreference } from "../notification/notification.model";
 
 const createUser = async (payload: Partial<IUser>) => {
 
@@ -136,6 +137,28 @@ const verifyUserService = async (email: string, otp: string) => {
             },
         }
     );
+
+    // Create notification preferences for the verified user
+    if (updateUser) {
+        await NotificationPreference.create({
+            user: updateUser._id,
+            channel: {
+                push: true,
+                email: true,
+                inApp: true,
+            },
+            directmsg: true,
+            app: {
+                product_updates: true,
+                special_offers: true,
+            },
+            event: {
+                event_invitations: true,
+                event_changes: true,
+                event_reminders: true,
+            },
+        });
+    }
 
     return updateUser;
 };

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-dynamic-delete */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console */
 import { Server } from 'socket.io';
 import { User } from '../modules/user/user.model';
 import { Service } from '../modules/service/service.model';
@@ -14,6 +15,7 @@ export const initSocket = (server: any) => {
     });
 
     io.on('connection', (socket) => {
+        console.log('🔌 [SOCKET] New connection:', socket.id);
 
         let userId: string | null = null;
 
@@ -22,8 +24,14 @@ export const initSocket = (server: any) => {
             userId = _userId;
             socket.join(userId);
             onlineUsers[userId] = socket.id;
+            
+            console.log(' [SOCKET] User joined:');
+            console.log('   userId:', userId);
+            console.log('   socketId:', socket.id);
+            console.log('    Total online users:', Object.keys(onlineUsers).length);
+            console.log('    Online users:', onlineUsers);
+            
             io.emit('get_online_users', Object.keys(onlineUsers));
-            console.log("user is joining");
         });
 
         socket.on('typing', ({ toUserId }) => {
@@ -62,7 +70,13 @@ export const initSocket = (server: any) => {
 
         // Handle Disconnect
         socket.on('disconnect', () => {
-            if (userId) delete onlineUsers[userId];
+            if (userId) {
+                delete onlineUsers[userId];
+                console.log(' [SOCKET] User disconnected:');
+                console.log('   userId:', userId);
+                console.log('    Total online users remaining:', Object.keys(onlineUsers).length);
+                console.log('   Online users:', onlineUsers);
+            }
             io.emit('get_online_users', Object.keys(onlineUsers));
         });
     });

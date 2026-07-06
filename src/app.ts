@@ -37,10 +37,13 @@ app.use(express.json());
 app.set("trust proxy", 1);
 app.use(express.urlencoded({extended: true}))
 app.use(cors({
-    origin: envVars.FRONTEND_URL,
-    credentials: true
-}))
-
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://example.com",
+  ],
+  credentials: true,
+}));
 app.use("/api/v1", router);
 
 app.get("/", (req: Request, res: Response)=>{

@@ -35,6 +35,12 @@ router.get(
   ServiceControllers.getMyService
 );
 
+// Get service details with all reviews
+router.get(
+  "/details/:id",
+  ServiceControllers.getServiceDetailsWithReviews
+);
+
 // Nearest services (geo-based)
 router.post("/nearest", ServiceControllers.getNearestServices);
 

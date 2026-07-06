@@ -102,13 +102,15 @@ const sendSystemNotification = catchAsync(async (req, res) => {
       data: null,
     });
   });
-const sendTestPush = catchAsync(async (_req, res) => {
-  const result = await NotificationService.sendTestPush();
+const sendTestPush = catchAsync(async (req, res) => {
+  const { token } = req.body;
+
+  const result = await NotificationService.sendTestPush(token);
 
   sendResponse(res, {
     success: true,
     statusCode: httpStatus.OK,
-    message: "Test push notification sent",
+    message: 'Test push notification sent successfully',
     data: result,
   });
 });

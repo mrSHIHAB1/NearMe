@@ -7,6 +7,7 @@ import {
 } from './notification.interface';
 import { Notification, NotificationPreference } from './notification.model';
 import { io } from '../../socket';
+import admin from '../../config/firebase.config';
 
 // Get user's notification preferences (using)
 const getUserNotificationPreferences = async (userId: string) => {
@@ -63,6 +64,7 @@ const getUsersNotificationService = async (
       { type: NotificationType.SYSTEM },
     ],
   })
+    .select('_id user eventId chatId receiverIds type title description data isRead createdAt')
     .skip(skip)
     .limit(limit)
     .sort(sort);
@@ -121,29 +123,30 @@ const deleteNotificationService = async (userId: string, notificationId: string)
 
   return null;
 };
-const admin = require('firebase-admin');
-const sendTestPush = async () => {
-  // Hardcoded FCM token from your frontend
-  const token = "c0B6k3_ARjWTolXR50hPcr:APA91bF8r1U9_X0G9bdNiJkCoE230edj5n3kIyjHJAdkljLFB4ZLVSKndXH0KWu4ILuLETbcz7mAqlElBadm5fsG8UoZywO2pShIsD7cITkmZnD7odPzgBA";
+const sendTestPush = async (token: string) => {
+  if (!token) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'FCM token is required');
+  }
 
   const message = {
     notification: {
-      title: "Test Push",
-      body: "This is a test notification from NotificationService"
+      title: 'Test Push 2',
+      body: 'This is a test notification from NotificationService',
     },
-    data: { test: "value" },
-    token: token // Pass the token directly here
+    data: { test: 'value' },
+    token: token,
   };
 
   try {
-    // Look for how your backend initializes firebase admin (commonly admin.messaging())
-    // Note: Use `.send()` for a single token, or `.sendMulticast()` for an array of tokens
     const response = await admin.messaging().send(message);
     console.log('Successfully sent message:', response);
     return response;
   } catch (error) {
     console.error('Error sending message:', error);
-    throw error;
+    throw new AppError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'Failed to send push notification'
+    );
   }
 };
 export const NotificationService = {

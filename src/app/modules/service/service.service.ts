@@ -538,6 +538,61 @@ const getMyService = async (userId: string) => {
   return service;
 };
 
+// ─── Get Service Details with All Reviews ─────────────────────────────────
+const getServiceDetailsWithReviews = async (serviceId: string) => {
+  const service = await Service.findById(serviceId)
+    .populate("service_category")
+    .populate("offer_services")
+    .populate("provider", "name email phone subscriptionInfo")
+    .populate("highlight_services");
+
+  if (!service) {
+    throw new AppError(httpStatus.NOT_FOUND, "Service not found");
+  }
+
+  // Calculate and update average rating
+  const ratingMap = await aggregateRatings([service._id]);
+  const ratingData = ratingMap.get(service._id.toString());
+  
+  if (ratingData) {
+    service.averageRating = parseFloat(ratingData.averageRating.toFixed(1));
+    await Service.findByIdAndUpdate(
+      service._id,
+      { averageRating: service.averageRating },
+      { new: false }
+    );
+  }
+
+  // Fetch all reviews for this service with user details
+  const reviews = await Review.find({
+    service: serviceId,
+    parentReview: null, // Get only main reviews, not replies
+  })
+    .populate("user", "name email avatar profilePicture")
+    .populate({
+      path: "replies",
+      populate: {
+        path: "user",
+        select: "name email avatar profilePicture",
+      },
+    })
+    .sort({ createdAt: -1 });
+
+  // Add `isOpen` flag based on current time and service hours
+  const isOpen = checkIsAvailableNow(
+    service.openingTime,
+    service.closingTime,
+    service.allTimeAvailability
+  );
+
+  const serviceObj: any = service.toObject ? service.toObject() : service;
+  serviceObj.isOpen = isOpen;
+  serviceObj.totalReviews = reviews.length;
+  serviceObj.reviews = reviews;
+
+  return serviceObj;
+};
+
 export const ServiceServices = {
   createService,
   getSingleService,
@@ -548,4 +603,5 @@ export const ServiceServices = {
   updateService,
   deleteService,
   getMyService,
+  getServiceDetailsWithReviews,
 };
