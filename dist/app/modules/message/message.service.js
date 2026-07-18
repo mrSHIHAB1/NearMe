@@ -77,18 +77,29 @@ const sendDirectMessageService = (user, receiverId, payload) => __awaiter(void 0
         type: notification_interface_1.NotificationType.CHAT,
         title: 'New Message',
         description: `${sender.name} sent you a message`,
+        chatId: message._id,
         data: {
             senderId: sender === null || sender === void 0 ? void 0 : sender._id.toString(),
+            senderName: sender === null || sender === void 0 ? void 0 : sender.name,
+            receiverId: receiverId,
             message: message.message.text || message.message.image,
             image: sender === null || sender === void 0 ? void 0 : sender.picture,
         },
     };
     // Send real-time notification via socket if receiver is online
-    if (socket_1.onlineUsers[receiverId]) {
-        yield (0, user_notification_utils_1.sendPersonalNotification)(notificationPayload);
+    try {
+        if (socket_1.onlineUsers[receiverId]) {
+            console.log('🟢 [MESSAGE SERVICE] Receiver is ONLINE - sending socket notification');
+            yield (0, user_notification_utils_1.sendPersonalNotification)(notificationPayload);
+        }
+        else {
+            console.log('🔴 [MESSAGE SERVICE] Receiver is OFFLINE - sending push notification');
+            yield (0, push_notification_utils_1.sendPushAndSave)(notificationPayload);
+        }
     }
-    else {
-        yield (0, push_notification_utils_1.sendPushAndSave)(notificationPayload);
+    catch (notificationError) {
+        console.error('⚠️ [MESSAGE SERVICE] Notification sending failed (non-critical):', notificationError instanceof Error ? notificationError.message : String(notificationError));
+        // Don't rethrow - message was already saved successfully
     }
     return message;
 });

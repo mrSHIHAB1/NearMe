@@ -16,6 +16,8 @@ router.post("/create", (0, checkAuth_1.checkAuth)(user_interface_1.Role.PROVIDER
 router.get("/all-services", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), service_controller_1.ServiceControllers.getAllServices);
 // Get provider's own service
 router.get("/my-service", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), service_controller_1.ServiceControllers.getMyService);
+// Get service details with all reviews
+router.get("/details/:id", service_controller_1.ServiceControllers.getServiceDetailsWithReviews);
 // Nearest services (geo-based)
 router.post("/nearest", service_controller_1.ServiceControllers.getNearestServices);
 // Global search by service name

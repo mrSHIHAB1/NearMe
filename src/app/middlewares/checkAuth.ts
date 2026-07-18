@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { envVars } from "../config/env";
 import AppError from "../errorHelpers/AppError";
 import { verifyToken } from "../utils/jwt";
-import { JwtPayload } from "jsonwebtoken";
+import { JwtPayload, TokenExpiredError } from "jsonwebtoken";
 import { User } from "../modules/user/user.model";
 import { IsActive } from "../modules/user/user.interface";
 import httpStatus from "http-status-codes";
@@ -13,7 +13,6 @@ export const checkAuth =
     try {
       const authHeader = req.headers.authorization;
 
-      // token from header or cookie
       let accessToken: string | undefined;
 
       if (authHeader?.startsWith("Bearer ")) {
@@ -23,7 +22,10 @@ export const checkAuth =
       }
 
       if (!accessToken) {
-        throw new AppError(403, "No token received");
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          "No token received"
+        );
       }
 
       const verifiedToken = verifyToken(
@@ -61,7 +63,7 @@ export const checkAuth =
 
       if (!authRoles.includes(verifiedToken.role)) {
         throw new AppError(
-          403,
+          httpStatus.FORBIDDEN,
           "You are not permitted to view this route"
         );
       }
@@ -70,6 +72,15 @@ export const checkAuth =
 
       next();
     } catch (error) {
+      if (error instanceof TokenExpiredError) {
+        return next(
+          new AppError(
+            httpStatus.UNAUTHORIZED,
+            "Access token expired"
+          )
+        );
+      }
+
       next(error);
     }
   };

@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.initSocket = exports.onlineUsers = exports.io = void 0;
 /* eslint-disable @typescript-eslint/no-dynamic-delete */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console */
 const socket_io_1 = require("socket.io");
 const user_model_1 = require("../modules/user/user.model");
 const service_model_1 = require("../modules/service/service.model");
@@ -22,14 +23,19 @@ const initSocket = (server) => {
         cors: { origin: '*', methods: ['GET', 'POST'] },
     });
     exports.io.on('connection', (socket) => {
+        console.log('[SOCKET] New connection:', socket.id);
         let userId = null;
         // Event: join-user
         socket.on('join-user', (_userId) => {
             userId = _userId;
             socket.join(userId);
             exports.onlineUsers[userId] = socket.id;
+            console.log(' [SOCKET] User joined:');
+            console.log('   userId:', userId);
+            console.log('   socketId:', socket.id);
+            console.log('    Total online users:', Object.keys(exports.onlineUsers).length);
+            console.log('    Online users:', exports.onlineUsers);
             exports.io.emit('get_online_users', Object.keys(exports.onlineUsers));
-            console.log("user is joining");
         });
         socket.on('typing', ({ toUserId }) => {
             // Emit typing event to the room for the target userId. Using
@@ -63,8 +69,13 @@ const initSocket = (server) => {
         }));
         // Handle Disconnect
         socket.on('disconnect', () => {
-            if (userId)
+            if (userId) {
                 delete exports.onlineUsers[userId];
+                console.log(' [SOCKET] User disconnected:');
+                console.log('   userId:', userId);
+                console.log('    Total online users remaining:', Object.keys(exports.onlineUsers).length);
+                console.log('   Online users:', exports.onlineUsers);
+            }
             exports.io.emit('get_online_users', Object.keys(exports.onlineUsers));
         });
     });

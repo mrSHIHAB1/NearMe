@@ -18,6 +18,7 @@ const AppError_1 = __importDefault(require("../../errorHelpers/AppError"));
 const notification_interface_1 = require("./notification.interface");
 const notification_model_1 = require("./notification.model");
 const socket_1 = require("../../socket");
+const firebase_config_1 = __importDefault(require("../../config/firebase.config"));
 // Get user's notification preferences (using)
 const getUserNotificationPreferences = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const preferences = yield notification_model_1.NotificationPreference.findOne({ user: userId });
@@ -48,6 +49,7 @@ const getUsersNotificationService = (userId, query) => __awaiter(void 0, void 0,
             { type: notification_interface_1.NotificationType.SYSTEM },
         ],
     })
+        .select('_id user eventId chatId receiverIds type title description data isRead createdAt')
         .skip(skip)
         .limit(limit)
         .sort(sort);
@@ -89,28 +91,26 @@ const deleteNotificationService = (userId, notificationId) => __awaiter(void 0, 
     socket_1.io.to(userId).emit('notification_deleted', { id: notificationId });
     return null;
 });
-const admin = require('firebase-admin');
-const sendTestPush = () => __awaiter(void 0, void 0, void 0, function* () {
-    // Hardcoded FCM token from your frontend
-    const token = "c0B6k3_ARjWTolXR50hPcr:APA91bF8r1U9_X0G9bdNiJkCoE230edj5n3kIyjHJAdkljLFB4ZLVSKndXH0KWu4ILuLETbcz7mAqlElBadm5fsG8UoZywO2pShIsD7cITkmZnD7odPzgBA";
+const sendTestPush = (token) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!token) {
+        throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, 'FCM token is required');
+    }
     const message = {
         notification: {
-            title: "Test Push",
-            body: "This is a test notification from NotificationService"
+            title: 'Test Push 2',
+            body: 'This is a test notification from NotificationService',
         },
-        data: { test: "value" },
-        token: token // Pass the token directly here
+        data: { test: 'value' },
+        token: token,
     };
     try {
-        // Look for how your backend initializes firebase admin (commonly admin.messaging())
-        // Note: Use `.send()` for a single token, or `.sendMulticast()` for an array of tokens
-        const response = yield admin.messaging().send(message);
+        const response = yield firebase_config_1.default.messaging().send(message);
         console.log('Successfully sent message:', response);
         return response;
     }
     catch (error) {
         console.error('Error sending message:', error);
-        throw error;
+        throw new AppError_1.default(http_status_codes_1.default.INTERNAL_SERVER_ERROR, 'Failed to send push notification');
     }
 });
 exports.NotificationService = {

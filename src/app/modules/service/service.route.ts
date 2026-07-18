@@ -22,6 +22,7 @@ router.post(
   ServiceControllers.createService
 );
 
+
 router.get(
   "/all-services",
   checkAuth(...Object.values(Role)),
@@ -61,8 +62,8 @@ router.patch(
 );
 
 router.delete(
-  "/:id",
-  checkAuth(Role.PROVIDER),
+  "/deleteService/:id",
+  checkAuth(Role.PROVIDER, Role.SUPER_ADMIN),
   ServiceControllers.deleteService
 );
 

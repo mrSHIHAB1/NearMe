@@ -15,7 +15,7 @@ export const initSocket = (server: any) => {
     });
 
     io.on('connection', (socket) => {
-        console.log('🔌 [SOCKET] New connection:', socket.id);
+        console.log('[SOCKET] New connection:', socket.id);
 
         let userId: string | null = null;
 

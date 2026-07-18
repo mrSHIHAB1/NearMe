@@ -21,5 +21,6 @@ router.post('/send_system_notification', (0, checkAuth_1.checkAuth)(user_interfa
 router.patch('/:id/mark_seen', (0, checkAuth_1.checkAuth)(...Object.keys(user_interface_1.Role)), notification_controller_1.NotificationController.markNotificationAsSeen);
 // Delete notification
 router.delete('/:id', (0, checkAuth_1.checkAuth)(...Object.keys(user_interface_1.Role)), notification_controller_1.NotificationController.deleteNotification);
-router.post("/test-push", notification_controller_1.NotificationController.sendTestPush);
+// Test push notification
+router.post('/test-push', (0, checkAuth_1.checkAuth)(user_interface_1.Role.SUPER_ADMIN), notification_controller_1.NotificationController.sendTestPush);
 exports.notificationRouter = router;

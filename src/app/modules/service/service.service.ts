@@ -495,19 +495,26 @@ const deleteService = async (id: string, user: any) => {
     throw new AppError(httpStatus.NOT_FOUND, "Service is not found");
   }
 
-  if (
-    user.role === Role.PROVIDER &&
-    service.provider &&
-    service.provider.toString() !== user.userId.toString()
-  ) {
-    throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
+  // PROVIDER can only delete their own service
+  if (user.role === Role.PROVIDER) {
+    if (service.provider && service.provider.toString() !== user.userId.toString()) {
+      throw new AppError(httpStatus.FORBIDDEN, "You are not authorized to delete this service");
+    }
+  }
+  // SUPER_ADMIN can delete any service
+  else if (user.role !== Role.SUPER_ADMIN) {
+    throw new AppError(httpStatus.FORBIDDEN, "Only providers and admins can delete services");
   }
 
+  // Delete service
   await Service.findByIdAndDelete(id);
 
+  // Update provider's hasService flag
   if (service.provider) {
     await User.findByIdAndUpdate(service.provider, { hasService: false });
   }
+
+  console.log(`[SERVICE DELETE] Service ${id} deleted by user ${user.userId} (role: ${user.role})`);
 };
 
 // ─── Get My Service (Provider's own service) ────────────────────────────────

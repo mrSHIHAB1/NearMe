@@ -13,15 +13,22 @@ exports.sendPersonalNotification = void 0;
 const socket_1 = require("../../socket");
 const notification_model_1 = require("../../modules/notification/notification.model");
 const sendPersonalNotification = (payload) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log(' [SOCKET NOTIFICATION] User is online, sending real-time notification:', {
+        userId: payload.user,
+        title: payload.title,
+        description: payload.description,
+        data: payload.data,
+    });
     // Save to DB (for offline support)
     const notification = yield notification_model_1.Notification.create(payload);
-    const receiverNotificationPreferences = yield notification_model_1.NotificationPreference.findOne({
-        user: payload.user,
+    console.log(' [SOCKET NOTIFICATION] Saved to DB:', {
+        notificationId: notification._id,
+        type: notification.type,
+        data: notification.data,
     });
-    if (receiverNotificationPreferences === null || receiverNotificationPreferences === void 0 ? void 0 : receiverNotificationPreferences.channel.inApp) {
-        const userRoom = payload.user.toString();
-        // Send real-time
-        socket_1.io.to(userRoom).emit('notification', notification);
-    }
+    const userRoom = payload.user.toString();
+    // Send real-time notification
+    socket_1.io.to(userRoom).emit('notification', notification);
+    console.log('[SOCKET NOTIFICATION] Notification emitted to room:', userRoom);
 });
 exports.sendPersonalNotification = sendPersonalNotification;

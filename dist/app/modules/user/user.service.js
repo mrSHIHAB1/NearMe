@@ -35,6 +35,7 @@ const user_constant_1 = require("./user.constant");
 const randomOTPGenerator_1 = require("../../utils/randomOTPGenerator");
 const sendEmail_1 = require("../../utils/sendEmail");
 const cloudinary_config_1 = require("../../config/cloudinary.config");
+const notification_model_1 = require("../notification/notification.model");
 const createUser = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password } = payload, rest = __rest(payload, ["email", "password"]);
     // console.log(email, password);
@@ -121,6 +122,27 @@ const verifyUserService = (email, otp) => __awaiter(void 0, void 0, void 0, func
             createdAt: 0,
         },
     });
+    // Create notification preferences for the verified user
+    if (updateUser) {
+        yield notification_model_1.NotificationPreference.create({
+            user: updateUser._id,
+            channel: {
+                push: true,
+                email: true,
+                inApp: true,
+            },
+            directmsg: true,
+            app: {
+                product_updates: true,
+                special_offers: true,
+            },
+            event: {
+                event_invitations: true,
+                event_changes: true,
+                event_reminders: true,
+            },
+        });
+    }
     return updateUser;
 });
 const resendOTPService = (email) => __awaiter(void 0, void 0, void 0, function* () {
@@ -243,6 +265,19 @@ const updateFcmToken = (userId, fcmToken) => __awaiter(void 0, void 0, void 0, f
         runValidators: true,
     });
 });
+const deleteUser = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = yield user_model_1.User.findByIdAndDelete(userId);
+    if (!user) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, 'User not found');
+    }
+    // Delete user's picture from Cloudinary if exists
+    if (user.picture) {
+        yield (0, cloudinary_config_1.deleteImageFromCLoudinary)(user.picture);
+    }
+    // Delete notification preferences for this user
+    yield notification_model_1.NotificationPreference.deleteMany({ user: userId });
+    return { success: true, message: 'User account deleted successfully' };
+});
 exports.UserServices = {
     createUser,
     updateUserLocation,
@@ -252,5 +287,6 @@ exports.UserServices = {
     getMe,
     verifyUserService,
     resendOTPService,
-    updateFcmToken
+    updateFcmToken,
+    deleteUser
 };

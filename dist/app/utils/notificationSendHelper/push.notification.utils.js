@@ -19,44 +19,98 @@ const notification_model_1 = require("../../modules/notification/notification.mo
 const user_model_1 = require("../../modules/user/user.model");
 const sendPushAndSave = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        console.log(' [PUSH NOTIFICATION] Attempting to send push notification:', {
+            userId: payload.user,
+            title: payload.title,
+            description: payload.description,
+            data: payload.data,
+        });
         // Save in MongoDB
         const notification = yield notification_model_1.Notification.create(Object.assign({}, payload));
+        console.log(' [PUSH NOTIFICATION] Saved to DB:', {
+            notificationId: notification._id,
+            type: notification.type,
+            data: notification.data,
+        });
         const user = yield user_model_1.User.findById(payload.user);
-        if (!user || !user.fcmToken)
+        if (!user) {
+            console.log(' [PUSH NOTIFICATION] User not found');
             return;
-        const receiverNotificationPreferences = yield notification_model_1.NotificationPreference.findOne({ user: payload.user });
-        // IF USER ALLOWED PUSH NOTIFICATION
-        if (receiverNotificationPreferences === null || receiverNotificationPreferences === void 0 ? void 0 : receiverNotificationPreferences.channel.push) {
-            // support multiple device tokens
-            if (Array.isArray(user.fcmToken)) {
-                const multicast = {
-                    tokens: user.fcmToken,
-                    notification: {
-                        title: payload.title,
-                        body: payload.description,
-                    },
-                    data: payload.data || {},
-                };
-                const result = yield firebase_config_1.default.messaging().sendMulticast(multicast);
-                console.log('Push multicast result: ', result);
+        }
+        if (!user.fcmToken) {
+            console.log(' [PUSH NOTIFICATION] User has no FCM token:', user._id);
+            return;
+        }
+        console.log(' [PUSH NOTIFICATION] User found with FCM token(s):', {
+            userId: user._id,
+            tokenCount: Array.isArray(user.fcmToken) ? user.fcmToken.length : 1,
+        });
+        // support multiple device tokens
+        if (Array.isArray(user.fcmToken)) {
+            // Filter out invalid tokens
+            const validTokens = user.fcmToken.filter((token) => token && typeof token === 'string' && token.trim().length > 0);
+            if (validTokens.length === 0) {
+                console.log(' [PUSH NOTIFICATION] No valid FCM tokens found');
+                return notification;
             }
-            else {
-                const message = {
-                    token: user.fcmToken,
-                    notification: {
-                        title: payload.title,
-                        body: payload.description,
-                    },
-                    data: payload.data || {}, // optional key-value pairs
-                };
-                const result = yield firebase_config_1.default.messaging().send(message); // Send notificaton via FCM
-                console.log('Push sent: ', result);
+            console.log(' [PUSH NOTIFICATION] Sending to', validTokens.length, 'tokens');
+            // Send to each token individually using allSettled to handle partial failures
+            const sendPromises = validTokens.map(token => firebase_config_1.default.messaging().send({
+                token: token.trim(),
+                notification: {
+                    title: payload.title,
+                    body: payload.description,
+                },
+                data: Object.assign({ type: payload.type }, (payload.data || {})),
+            }));
+            const results = yield Promise.allSettled(sendPromises);
+            // Track failed tokens for cleanup
+            const failedTokens = [];
+            const successCount = results.filter((result, index) => {
+                var _a, _b;
+                if (result.status === 'rejected') {
+                    failedTokens.push(validTokens[index]);
+                    const errorMsg = ((_a = result.reason) === null || _a === void 0 ? void 0 : _a.message) || String(result.reason);
+                    console.warn(` [PUSH NOTIFICATION] Failed to send to token ${(_b = validTokens[index]) === null || _b === void 0 ? void 0 : _b.substring(0, 10)}...`, errorMsg);
+                    return false;
+                }
+                return true;
+            }).length;
+            console.log(` [PUSH NOTIFICATION] Sent to ${successCount}/${validTokens.length} tokens`);
+            // Remove invalid/expired tokens from database
+            if (failedTokens.length > 0) {
+                yield user_model_1.User.findByIdAndUpdate(payload.user, { $pull: { fcmToken: { $in: failedTokens } } }, { new: true });
+                console.log(` [PUSH NOTIFICATION] Removed ${failedTokens.length} invalid token(s) from database`);
             }
+        }
+        else {
+            // Single token handling
+            const singleToken = user.fcmToken;
+            const trimmedToken = singleToken === null || singleToken === void 0 ? void 0 : singleToken.trim();
+            if (!trimmedToken) {
+                console.log(' [PUSH NOTIFICATION] Invalid FCM token');
+                return notification;
+            }
+            const message = {
+                token: trimmedToken,
+                notification: {
+                    title: payload.title,
+                    body: payload.description,
+                },
+                data: Object.assign({ type: payload.type }, (payload.data || {})),
+            };
+            console.log(' [PUSH NOTIFICATION] Sending to single token');
+            const result = yield firebase_config_1.default.messaging().send(message);
+            console.log(' [PUSH NOTIFICATION] Single message sent successfully:', result);
         }
         return notification;
     }
     catch (err) {
-        console.error('Error sending notification:', err);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error('❌ [PUSH NOTIFICATION] Error sending notification:', errorMsg);
+        // Don't rethrow - log and continue to prevent server crashes
+        // Notification is already saved to DB, so it's safe to continue
+        return null;
     }
 });
 exports.sendPushAndSave = sendPushAndSave;

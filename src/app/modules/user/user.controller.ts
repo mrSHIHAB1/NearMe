@@ -161,6 +161,21 @@ const updateFcmToken = catchAsync(async (req, res) => {
     data: result,
   });
 });
+
+const deleteUser = catchAsync(async (req: Request, res: Response) => {
+  const decodedToken = req.user as JwtPayload;
+  const userId = decodedToken.userId;
+
+  const result = await UserServices.deleteUser(userId);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: 'User account deleted successfully',
+    data: result,
+  });
+});
+
 export const UserControllers = {
   createUser,
   updateUserLocation,
@@ -170,5 +185,6 @@ export const UserControllers = {
   getSingleUser,
   getMe,
   verifyUser,
-  resendOTP
+  resendOTP,
+  deleteUser
 }

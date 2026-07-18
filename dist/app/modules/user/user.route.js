@@ -17,6 +17,7 @@ router.post('/resend-otp', user_controller_1.UserControllers.resendOTP);
 router.get("/all-users", (0, checkAuth_1.checkAuth)(user_interface_1.Role.PROVIDER, user_interface_1.Role.SUPER_ADMIN), user_controller_1.UserControllers.getAllUsers);
 router.get("/me", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), user_controller_1.UserControllers.getMe);
 router.patch("/fcm-token", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), user_controller_1.UserControllers.updateFcmToken);
+router.delete("/delete-me", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), user_controller_1.UserControllers.deleteUser);
 router.get("/:id", (0, checkAuth_1.checkAuth)(user_interface_1.Role.PROVIDER, user_interface_1.Role.SUPER_ADMIN), user_controller_1.UserControllers.getSingleUser);
-router.patch("/:id", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), multer_config_1.multerUpload.single("picture"), (0, validateRequest_1.validateRequest)(user_validation_1.updateUserZodSchema), user_controller_1.UserControllers.updateUser);
+router.patch("/info", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), multer_config_1.multerUpload.single("picture"), (0, validateRequest_1.validateRequest)(user_validation_1.updateUserZodSchema), user_controller_1.UserControllers.updateUser);
 exports.UserRoutes = router;

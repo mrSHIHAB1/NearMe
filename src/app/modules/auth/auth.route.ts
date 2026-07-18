@@ -23,6 +23,7 @@ router.post('/reset-password', AuthControllers.resetPassword);
 
 
 // previous routes
+
 // router.post("/change-password", checkAuth(...Object.values(Role)), AuthControllers.changePassword);
 // router.post("/set-password", checkAuth(...Object.values(Role)), AuthControllers.setPassword);
 // router.post("/forgot-password", AuthControllers.forgotPassword);

@@ -204,6 +204,28 @@ const getMyService = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0
         data: service,
     });
 }));
+/**
+ * GET /service/:id/details
+ *
+ * Retrieves comprehensive service details including:
+ * - Service info (name, about, time, location)
+ * - Category details
+ * - Average rating and total reviews
+ * - All service highlights
+ * - All reviews from users with user details populated
+ *
+ * Returns: Complete service object with reviews array and metadata
+ */
+const getServiceDetailsWithReviews = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const serviceId = req.params.id;
+    const service = yield service_service_1.ServiceServices.getServiceDetailsWithReviews(serviceId);
+    (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: http_status_codes_1.default.OK,
+        message: "Service details with reviews retrieved successfully",
+        data: service,
+    });
+}));
 exports.ServiceControllers = {
     createService,
     getAllServices,
@@ -214,4 +236,5 @@ exports.ServiceControllers = {
     getSingleService,
     deleteService,
     getMyService,
+    getServiceDetailsWithReviews,
 };

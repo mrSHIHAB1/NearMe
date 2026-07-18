@@ -13,6 +13,7 @@ import { sendPushAndSave } from '../../utils/notificationSendHelper/push.notific
 import { NotificationType } from '../notification/notification.interface';
 
 // SEND DIRECT MESSAGE (1-to-1)
+
 const sendDirectMessageService = async (
   user: JwtPayload,
   receiverId: string,
@@ -90,12 +91,20 @@ const sendDirectMessageService = async (
   };
 
   // Send real-time notification via socket if receiver is online
-  if (onlineUsers[receiverId]) {
-    console.log('🟢 [MESSAGE SERVICE] Receiver is ONLINE - sending socket notification');
-    await sendPersonalNotification(notificationPayload);
-  } else {
-    console.log('🔴 [MESSAGE SERVICE] Receiver is OFFLINE - sending push notification');
-    await sendPushAndSave(notificationPayload);
+  try {
+    if (onlineUsers[receiverId]) {
+      console.log('🟢 [MESSAGE SERVICE] Receiver is ONLINE - sending socket notification');
+      await sendPersonalNotification(notificationPayload);
+    } else {
+      console.log('🔴 [MESSAGE SERVICE] Receiver is OFFLINE - sending push notification');
+      await sendPushAndSave(notificationPayload);
+    }
+  } catch (notificationError) {
+    console.error(
+      '⚠️ [MESSAGE SERVICE] Notification sending failed (non-critical):',
+      notificationError instanceof Error ? notificationError.message : String(notificationError)
+    );
+    // Don't rethrow - message was already saved successfully
   }
 
   return message;

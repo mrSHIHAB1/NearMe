@@ -218,6 +218,7 @@ const googleappAuthSystem = (0, catchAsync_1.catchAsync)((req, res, next) => __a
         throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, 'id_token is required in request body');
     }
     const result = yield auth_service_1.AuthServices.googleappAuthSystem(safeBody);
+    console.log('Google Auth Result:', result);
     (0, sendResponse_1.sendResponse)(res, {
         success: true,
         statusCode: 200,

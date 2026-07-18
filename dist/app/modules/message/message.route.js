@@ -12,12 +12,12 @@ const checkAuth_1 = require("../../middlewares/checkAuth");
 const user_interface_1 = require("../user/user.interface");
 const message_validation_1 = require("./message.validation");
 const router = express_1.default.Router();
-// Get all conversations (list of users with last message)
-router.get('/conversations', (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), message_controller_1.messageControllers.getConversations);
 // Send direct message to a user
 router.post('/send/:receiverId', (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), multer_config_1.multerUpload.single('file'), (0, validateRequest_1.validateRequest)(message_validation_1.sendMessageSchema), message_controller_1.messageControllers.sendDirectMessage);
+// Mark messages as seen (must come before /:userId to avoid conflict)
+router.patch('/:userId/seen', (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), message_controller_1.messageControllers.markMessagesAsSeen);
+// Get all conversations (list of users with last message)
+router.get('/conversations', (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), message_controller_1.messageControllers.getConversations);
 // Get all messages with a specific user
 router.get('/:userId', (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), message_controller_1.messageControllers.getDirectMessages);
-// Mark messages as seen
-router.patch('/:userId/seen', (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), message_controller_1.messageControllers.markMessagesAsSeen);
 exports.MessageRoutes = router;

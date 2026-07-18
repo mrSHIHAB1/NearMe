@@ -52,7 +52,7 @@ const createUser = async (payload: Partial<IUser>) => {
         templateName: 'otp',
         templateData: {
             name: user.name,
-            otp: user.otp,
+            otp: user.otp, 
         },
     });
 
@@ -320,6 +320,24 @@ const updateFcmToken = async (
     }
   );
 };
+const deleteUser = async (userId: string) => {
+  const user = await User.findByIdAndDelete(userId);
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  // Delete user's picture from Cloudinary if exists
+  if (user.picture) {
+    await deleteImageFromCLoudinary(user.picture);
+  }
+
+  // Delete notification preferences for this user
+  await NotificationPreference.deleteMany({ user: userId });
+
+  return { success: true, message: 'User account deleted successfully' };
+};
+
 export const UserServices = {
     createUser,
     updateUserLocation,
@@ -329,5 +347,6 @@ export const UserServices = {
     getMe,
     verifyUserService,
     resendOTPService,
-    updateFcmToken
+    updateFcmToken,
+    deleteUser
 }

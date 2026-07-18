@@ -399,6 +399,45 @@ const getMyService = (userId) => __awaiter(void 0, void 0, void 0, function* () 
     }
     return service;
 });
+// ─── Get Service Details with All Reviews ─────────────────────────────────
+const getServiceDetailsWithReviews = (serviceId) => __awaiter(void 0, void 0, void 0, function* () {
+    const service = yield service_model_1.Service.findById(serviceId)
+        .populate("service_category")
+        .populate("offer_services")
+        .populate("provider", "name email phone subscriptionInfo")
+        .populate("highlight_services");
+    if (!service) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Service not found");
+    }
+    // Calculate and update average rating
+    const ratingMap = yield aggregateRatings([service._id]);
+    const ratingData = ratingMap.get(service._id.toString());
+    if (ratingData) {
+        service.averageRating = parseFloat(ratingData.averageRating.toFixed(1));
+        yield service_model_1.Service.findByIdAndUpdate(service._id, { averageRating: service.averageRating }, { new: false });
+    }
+    // Fetch all reviews for this service with user details
+    const reviews = yield review_model_1.Review.find({
+        service: serviceId,
+        parentReview: null, // Get only main reviews, not replies
+    })
+        .populate("user", "name email avatar profilePicture")
+        .populate({
+        path: "replies",
+        populate: {
+            path: "user",
+            select: "name email avatar profilePicture",
+        },
+    })
+        .sort({ createdAt: -1 });
+    // Add `isOpen` flag based on current time and service hours
+    const isOpen = (0, checkIsAvailableNow_1.checkIsAvailableNow)(service.openingTime, service.closingTime, service.allTimeAvailability);
+    const serviceObj = service.toObject ? service.toObject() : service;
+    serviceObj.isOpen = isOpen;
+    serviceObj.totalReviews = reviews.length;
+    serviceObj.reviews = reviews;
+    return serviceObj;
+});
 exports.ServiceServices = {
     createService,
     getSingleService,
@@ -409,4 +448,5 @@ exports.ServiceServices = {
     updateService,
     deleteService,
     getMyService,
+    getServiceDetailsWithReviews,
 };

@@ -89,12 +89,13 @@ const deleteNotification = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(
         data: null,
     });
 }));
-const sendTestPush = (0, catchAsync_1.catchAsync)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield notification_service_1.NotificationService.sendTestPush();
+const sendTestPush = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { token } = req.body;
+    const result = yield notification_service_1.NotificationService.sendTestPush(token);
     (0, sendResponse_1.sendResponse)(res, {
         success: true,
         statusCode: http_status_codes_1.default.OK,
-        message: "Test push notification sent",
+        message: 'Test push notification sent successfully',
         data: result,
     });
 }));

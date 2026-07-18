@@ -78,8 +78,8 @@ const resendOTP = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, v
 }));
 const updateUser = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const userId = req.params.id;
     const verifiedToken = req.user;
+    const userId = verifiedToken.userId;
     const payload = Object.assign(Object.assign({}, req.body), { picture: (_a = req.file) === null || _a === void 0 ? void 0 : _a.path });
     const user = yield user_service_1.UserServices.updateUser(userId, payload, verifiedToken);
     (0, sendResponse_1.sendResponse)(res, {
@@ -131,6 +131,17 @@ const updateFcmToken = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void
         data: result,
     });
 }));
+const deleteUser = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const decodedToken = req.user;
+    const userId = decodedToken.userId;
+    const result = yield user_service_1.UserServices.deleteUser(userId);
+    (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: http_status_codes_1.default.OK,
+        message: 'User account deleted successfully',
+        data: result,
+    });
+}));
 exports.UserControllers = {
     createUser,
     updateUserLocation,
@@ -140,5 +151,6 @@ exports.UserControllers = {
     getSingleUser,
     getMe,
     verifyUser,
-    resendOTP
+    resendOTP,
+    deleteUser
 };
